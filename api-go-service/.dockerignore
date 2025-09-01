@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Test files
+*_test.go
+testdata/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Build artifacts (if any)
+bin/
+dist/
+build/
+
+# Coverage reports
+coverage.out
+*.cover
+
+# Vendor directory (if using)
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Docker files (don't need to copy into container)
+Dockerfile*
+docker-compose*
+.dockerignore
