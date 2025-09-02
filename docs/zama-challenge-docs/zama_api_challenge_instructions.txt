@@ -1,0 +1,68 @@
+zama api challenge instructions.txt
+---
+Thanks again for your interest in joining Zama and for the chat today.
+Should you choose to accept, we’d like you to complete a short technical
+challenge that will help us understand your DevOps and SRE skills.
+Objective
+
+Show how you would operate a small developer-facing service with solid
+DevOps and SRE practices. This is not production work and you do not have
+to use any pre-existing Zama code/repositories. We want to see your
+judgement, automation, and ability to wire things together cleanly.
+The task
+
+You will run a very small HTTP API and treat it as if it were a real-world
+service. The focus is platform skills, not feature development.
+Service
+
+Use either a mock server from any existing OpenAPI spec (e.g. Prism https://github.com/stoplightio/prism, openapi-mock https://github.com/muonsoft/openapi-mock), or implement a minimal API with a /healthz endpoint and one simple JSON operation (e.g. sum numbers or hash a string). Please note: this is not a coding challenge, so do not spend time creating a complicated API.
+No database or persistence is required.
+If you implement an API yourself: Include at least one automated test. Language is your choice. Rust or TypeScript is preferred, Golang or others acceptable.
+API management layer
+
+Put the service behind a proxy or gateway and enforce one simple policy. Examples: an API key check, per-route rate limit, or request size limit.
+Tools are your choice:
+Baseline reverse proxy with rate limits and an API key in front of the service.
+Lightweight gateway (for example Kong or Tyk in Docker) with a simple policy such as authentication and a per-route limit.
+Security and reliability
+
+Add one concrete security control. Examples: API key on the non-health endpoints, secrets management, restricted ingress.
+Add one reliability feature. Examples: rate limiting, retries, graceful shutdown, readiness probe separate from liveness.
+Containerisation and deployment
+
+Containerise the service.
+Provision and deploy using Terraform or Terragrunt on AWS or use LocalStack to emulate AWS.
+Important: You do not need to give us a live environment. Instead:
+Include a saved terraform plan output (plan.txt) in your repo.
+Include a terraform graph output as an image or .dot file.
+Add screenshots or a short (2–3 minute) video of the service running in your AWS account or LocalStack and show the results that way.
+Provide a terraform.tfvars.example with sample values.
+Do not commit secrets or state files.
+CI/CD
+
+Use Github Actions to create pipeline(s) to validate, plan/deploy, and test the service along with API management layer.
+Observability
+
+Expose basic metrics and useful logs.
+Include a small dashboard and one alert that would catch a meaningful issue.
+Documentation
+
+A concise README that covers how to run locally, how to deploy, how to observe, how to operate during incidents, and any trade-offs.
+Include a simple diagram in the repo. PNG or Mermaid in the README is fine. Show client, proxy or gateway, service, CI/CD, monitoring.
+Reflection
+
+Please include short write-ups covering:
+
+If I had more time: what you would extend or polish, and why.
+AI coding assistance: if you used tools like Copilot or ChatGPT, what worked well and what did not for this task.
+Time and scope
+
+You have one week to submit. We do not expect you to spend the full week. A
+few focused hours is fine. Prioritise clarity, completeness, and pragmatic
+scope.
+Submission
+
+A Git repository with IaC code, infra, CI/CD, diagram, and docs.
+(Optional) A short 3–5 minute walkthrough video explaining your architecture and demonstrating the setup.
+
+---

@@ -1,0 +1,95 @@
+Home
+/
+Kong Plugin Hub
+Edit this Page
+Report an Issue
+
+Key Auth
+Overview
+Examples
+Configuration reference
+Changelog
+API reference
+The Key Authentication plugin lets you add API key authentication to a Gateway Service or a Route. Consumers then add their key either in a query string parameter, a header, or a request body to authenticate their requests.
+
+The advanced version of this plugin, Key Authentication Encrypted, provides the ability to encrypt keys. Keys are encrypted at rest in the Kong Gateway data store.
+
+Request behavior matrix
+The following table describes how Kong Gateway behaves in various authentication scenarios:
+
+Condition
+
+Proxied to upstream service?
+
+Response code
+
+The request has a valid API key.		200
+No API key is provided.		401
+The API key is not known to Kong Gateway		401
+A runtime error occurred.		500
+Consumer key management
+When you create a Consumer, you can specify a key with keyauth_credentials (declarative configuration) or the /consumers/{usernameOrId}/key-auth endpoint.
+
+When authenticating, Consumers must specify their key in either the query, body, or header:
+
+Use
+
+Example
+
+Description
+
+Key in query	
+curl http://localhost:8000/$PROXY_PATH?apikey=$APIKEY
+Copied to clipboard!
+To use the key in URL queries, set the configuration parameter config.key_in_query to true (default option).
+Key in body	
+curl http://localhost:8000/$PROXY_PATH \
+--data 'apikey: {some_key}'
+Copied to clipboard!
+To use the key in a request body, set the configuration parameter config.key_in_body to true. The default value is false.
+Key in header	
+curl http://kong:8000/$PROXY_PATH \
+-H 'apikey: $APIKEY'
+Copied to clipboard!
+To use the key in a request body, set the configuration parameter config.key_in_header to true (default option).
+API key locations in a request
+Use the following recommendations for each key location:
+
+Recommended: Use config.key_in_header (enabled by default) as the most common and secure way to do service-to-service calls.
+If you need to share links to browser clients, use config.key_in_query (enabled by default). Be aware that query parameter requests can appear within application logs and URL browser bars, which expose the API key.
+If you are sending a form with a browser, such as a login form, use config.key_in_body. This option is set to false by default because it’s a less common use case, and is a more expensive and less performant request.
+For better security, only enable the key locations that you need to use.
+
+Case sensitivity
+According to their respective specifications, HTTP header names are treated as case insensitive, while HTTP query string parameter names are treated as case sensitive. Kong Gateway follows these specifications as designed, meaning that the config.key_names configuration values are treated differently when searching the request header fields versus searching the query string. As a best practice, administrators are advised against defining case-sensitive config.key_names values when expecting the authorization keys to be sent in the request headers.
+
+Once applied, any user with a valid credential can access the Service or Route. To restrict usage to certain authenticated users, add the ACL plugin and create allowed or denied groups of users.
+
+Upstream headers
+When a client has been authenticated, the plugin appends some headers to the request before proxying it to the upstream service, so that you can identify the Consumer in your code:
+
+X-Consumer-ID: The ID of the Consumer in Kong Gateway.
+X-Consumer-Custom-ID: The custom_id of the Consumer (if set).
+X-Consumer-Username: The username of the Consumer (if set).
+X-Credential-Identifier: The identifier of the credential (only if the Consumer is not the anonymous Consumer).
+X-Anonymous-Consumer: Is set to true if authentication fails, and the anonymous Consumer is set instead.
+You can use this information on your side to implement additional logic. You can use the X-Consumer-ID value to query the Admin API and retrieve more information about the Consumer.
+
+Identity realms
+v3.10+
+You can authenticate centrally-managed Consumers in Konnect by configuring the config.identity_realms field. See Realms for external Consumers in Konnect for an example configuration.
+
+Identity realms are scoped to the Control Plane by default (scope: cp). The order in which you configure the identity realm dictates the priority in which the Data Plane attempts to authenticate the provided API keys:
+
+Condition
+
+Description
+
+Realm is listed first	The Data Plane will first reach out to the realm. If the API key is not found in the realm, the Data Plane will look for the API key in the Control Plane config.
+Control plane scope listed first	The Data Plane will initially check the Control Plane configuration (LMDB) for the API key before looking up the API key in the realm.
+Realm only	You can configure a single identity realm by removing cp from config.identity_realms.scope. In this case, the Data Plane will only attempt to authenticate API keys against the realm.
+If the API key isn’t found, the request will be blocked.
+
+Control plane only	You can configure a lookup only in the Control Plane config by specifying cp in config.identity_realms.scope and no other identity realm parameters. In this scenario, the Data Plane will only check the Control Plane configuration (LMDB) for API key authentication.
+If the API key isn’t found, the request will be blocked.
+

@@ -1,0 +1,251 @@
+Get started with Kong Gateway
+Uses:
+Kong Gateway
+deck
+TL;DR
+Kong Gateway is a lightweight, fast, and flexible cloud-native API gateway. Kong Gateway sits in front of your upstream services, dynamically controlling, analyzing, and routing requests and responses. Kong Gateway implements your API traffic policies by using a flexible, low-code, plugin-based approach.
+
+This tutorial will help you get started with Kong Gateway by setting up either a Konnect hybrid deployment or self-managed local installation and walking through some common API management tasks.
+
+Note: This quickstart runs a Docker container to explore Kong Gateway’s capabilities. If you want to run Kong Gateway as a part of a production-ready API platform, start with the Install page.
+
+Prerequisites
+Kong Konnect
+This is a Konnect tutorial and requires a Konnect personal access token.
+
+Create a new personal access token by opening the Konnect PAT page and selecting Generate Token.
+
+Export your token to an environment variable:
+
+ export KONNECT_TOKEN='YOUR_KONNECT_PAT'
+Copied to clipboard!
+Run the quickstart script to automatically provision a Control Plane and Data Plane, and configure your environment:
+
+ curl -Ls https://get.konghq.com/quickstart | bash -s -- -k $KONNECT_TOKEN --deck-output
+Copied to clipboard!
+This sets up a Konnect Control Plane named quickstart, provisions a local Data Plane, and prints out the following environment variable exports:
+
+ export DECK_KONNECT_TOKEN=$KONNECT_TOKEN
+ export DECK_KONNECT_CONTROL_PLANE_NAME=quickstart
+ export KONNECT_CONTROL_PLANE_URL=https://us.api.konghq.com
+ export KONNECT_PROXY_URL='http://localhost:8000'
+Copied to clipboard!
+Copy and paste these into your terminal to configure your session.
+
+decK   v1.43+
+cURL
+Check that Kong Gateway is running
+We’ll be using decK for this tutorial, so let’s check that Kong Gateway is running and that decK can access it:
+
+deck gateway ping
+Copied to clipboard!
+If everything is running, then you should get the following response:
+
+Successfully Konnected to the Kong organization!
+Create a Gateway Service
+Kong Gateway administrators work with an object model to define their desired traffic management policies. Two important objects in that model are Gateway Services and Routes. Together, Services and Routes define the path that requests and responses will take through the system.
+
+Run the following command to create a Service mapped to the upstream URL https://httpbin.konghq.com:
+
+echo '
+_format_version: "3.0"
+services:
+  - name: example_service
+    url: https://httpbin.konghq.com
+' | deck gateway apply -
+Copied to clipboard!
+In this example, you are configuring the following attributes:
+
+name: The name of the Service
+url : An attribute that populates the host, port, and path of the Service
+Create a Route
+Routes define how requests are proxied by Kong Gateway. You can create a Route associated with a specific Service by sending a POST request to the URL defined in the Service.
+
+Configure a new Route on the /mock path to direct traffic to the example_service Service:
+
+echo '
+_format_version: "3.0"
+routes:
+  - name: example_route
+    service:
+      name: example_service
+    paths:
+    - "/mock"
+' | deck gateway apply -
+Copied to clipboard!
+Validate the Gateway Service and Route by proxying a request
+Using the Service and Route, you can now access https://httpbin.konghq.com/ using the /mock path.
+
+Httpbin provides an /anything resource which will return information about requests made to it. Proxy a request through Kong Gateway to the /anything resource:
+
+ curl "$KONNECT_PROXY_URL/mock/anything"
+Copied to clipboard!
+You should get a 200 response back.
+
+Enable authentication
+Authentication is the process of verifying that the requester has permissions to access a resource. As its name implies, API gateway authentication authenticates the flow of data to and from your upstream services.
+
+Enable Key Auth plugin
+For this example, we’ll use the Key Authentication plugin. In key authentication, Kong Gateway generates and associates an API key with a Consumer. That key is the authentication secret presented by the client when making subsequent requests. Kong Gateway approves or denies requests based on the validity of the presented key.
+
+echo '
+_format_version: "3.0"
+plugins:
+  - name: key-auth
+    config:
+      key_names:
+      - apikey
+' | deck gateway apply -
+Copied to clipboard!
+The key_names configuration field defines the name of the field that the plugin looks for to read the key when authenticating requests. The plugin looks for the field in headers, query string parameters, and the request body.
+
+Create a Consumer
+Consumers let you identify the client that’s interacting with Kong Gateway. You need to create a Consumer for key authentication to work.
+
+Create a new Consumer with the username luka and the key top-secret-key:
+
+echo '
+_format_version: "3.0"
+consumers:
+  - username: luka
+    keyauth_credentials:
+    - key: top-secret-key
+' | deck gateway apply -
+Copied to clipboard!
+For the purposes of this tutorial, we have assigned an example key value. In production, it is recommended that you let the API gateway autogenerate a complex key for you. Only specify a key for testing or when migrating existing systems.
+
+Validate using key authentication
+Try to access the Service without providing the key:
+
+curl -i $KONNECT_PROXY_URL/mock/anything 
+Copied to clipboard!
+This request returns a 401 error with the message No API key found in request.
+
+Since you enabled key authentication globally, you will receive an unauthorized response:
+
+HTTP/1.1 401 Unauthorized
+...
+{
+    "message": "No API key found in request"
+}
+Now, let’s send a request with the valid key in the apikey header:
+
+ curl "$KONNECT_PROXY_URL/mock/anything" \
+     -H "apikey:top-secret-key"
+Copied to clipboard!
+You will receive a 200 OK response.
+
+Enable load balancing
+Load balancing is a method of distributing API request traffic across multiple upstream services. Load balancing improves overall system responsiveness and reduces failures by preventing overloading of individual resources.
+
+In the following example, you’ll use an application deployed across two different hosts, or upstream targets. Kong Gateway needs to load balance across the upstreams, so that if one of them is unavailable, it automatically detects the problem and routes all traffic to the working upstream.
+
+You’ll need to configure two new types of entities: an Upstream and two Targets. Create an Upstream named example_upstream and add two Targets to it:
+
+echo '
+_format_version: "3.0"
+upstreams:
+  - name: example_upstream
+    targets:
+    - target: httpbun.com:80
+      weight: 100
+    - target: httpbin.konghq.com:80
+      weight: 100
+' | deck gateway apply -
+Copied to clipboard!
+Let’s update the example_service Service to point to this Upstream, instead of pointing directly to a URL:
+
+echo '
+_format_version: "3.0"
+services:
+  - name: example_service
+    host: example_upstream
+' | deck gateway apply -
+Copied to clipboard!
+You now have an Upstream with two Targets, httpbin.konghq.com and httpbun.com, and a Gateway Service pointing to that Upstream.
+
+For the purposes of our example, the Upstream is pointing to two different Targets. More commonly, Targets will be instances of the same upstream service running on different host systems.
+
+Validate load balancing
+Validate that the Upstream you configured is working by visiting the /mock route several times, waiting a few seconds between each time. You will see the hostname change between httpbin and httpbun:
+
+curl -s $KONNECT_PROXY_URL/mock/headers \
+  -H 'apikey:top-secret-key' | grep -i -A1 '"host"'
+Copied to clipboard!
+Enable caching
+One of the ways Kong delivers performance is through caching. The Proxy Cache plugin accelerates performance by caching responses based on configurable response codes, content types, and request methods. When caching is enabled, upstream services are not bogged down with repetitive requests, because Kong Gateway responds on their behalf with cached results.
+
+Let’s enable the Proxy Cache plugin globally:
+
+echo '
+_format_version: "3.0"
+plugins:
+  - name: proxy-cache
+    config:
+      request_method:
+      - GET
+      response_code:
+      - 200
+      content_type:
+      - application/json
+      cache_ttl: 30
+      strategy: memory
+' | deck gateway apply -
+Copied to clipboard!
+This configures a Proxy Cache plugin with the following attributes:
+
+Kong Gateway will cache all GET requests that result in response codes of 200
+It will also cache responses with the Content-Type headers that equal application/json
+cache_ttl instructs the plugin to flush values after 30 seconds
+config.strategy=memory specifies the backing data store for cached responses. More information on strategy can be found in the parameter reference for the Proxy Cache plugin.
+Validate caching
+You can check that the Proxy Cache plugin is working by sending GET requests and examining the returned headers.
+
+Run the following command to send 2 mock requests. The Proxy Cache plugin returns status information headers prefixed with X-Cache, so you can use grep to filter for that information:
+
+for _ in {1..2}; do \
+  curl -s -i $KONNECT_PROXY_URL/mock/anything \
+    -H 'apikey:top-secret-key'; \
+  echo; sleep 1; \
+done | grep -E 'X-Cache'
+Copied to clipboard!
+On the initial request, there should be no cached responses, and the headers will indicate this with X-Cache-Status: Miss:
+
+X-Cache-Key: c9e1d4c8e5fd8209a5969eb3b0e85bc6
+X-Cache-Status: Miss
+The following response will be cached and show X-Cache-Status: Hit:
+
+X-Cache-Key: c9e1d4c8e5fd8209a5969eb3b0e85bc6
+X-Cache-Status: Hit
+Enable rate limiting
+Rate limiting is used to control the rate of requests sent to an upstream service. It can be used to prevent DoS attacks, limit web scraping, and other forms of overuse. Without rate limiting, clients have unlimited access to your upstream services, which may negatively impact availability.
+
+In this example, we’ll use the Rate Limiting plugin. Installing the plugin globally means that every proxy request to Kong Gateway will be subject to rate limit enforcement:
+
+echo '
+_format_version: "3.0"
+plugins:
+  - name: rate-limiting
+    config:
+      minute: 5
+      policy: local
+' | deck gateway apply -
+Copied to clipboard!
+In this example, you configured a limit of 5 requests per minute for all Routes, Services, and Consumers.
+
+Validate rate limiting
+You can check that the Rate Limiting plugin is working by sending GET requests and examining the returned headers.
+
+Run the following command to send 6 mock requests:
+
+for _ in {1..6}; do
+  curl  -i $KONNECT_PROXY_URL/mock/anything \
+       -H "apikey:top-secret-key" 
+  echo
+done
+Copied to clipboard!
+On the last request, you should get a 429 response with the message API rate limit exceeded.
+
+After the 6th request, you should receive a 429 error, which means your requests were rate limited according to the policy:
+
+HTTP/1.1 429 Too Many Requests

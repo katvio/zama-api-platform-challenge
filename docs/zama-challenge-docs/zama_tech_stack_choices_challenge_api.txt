@@ -1,0 +1,70 @@
+Tech stack zama challenge api.txt
+---
+API code Service Implementation
+
+- Language: Go (explicitly mentioned in job description as preferred)
+- Framework: Gin or Echo for HTTP API
+- Simple endpoints: /healthz and /api/v1/sum (sum 2 numbers - simple JSON operation)
+- Testing: Go's built-in testing framework with table-driven tests
+
+API Management Layer
+
+- Primary choice: Kong (Docker-based, mentioned in job description)
+- Policies: API key authentication + rate limiting per route
+
+AWS Infrastructure
+
+Container Platform: ECS Fargate (not EKS)
+Why ECS over EKS:
+
+- Less operational overhead for simple services
+- Faster to set up and demonstrate
+- Still shows container orchestration knowledge
+- More cost-effective for small workloads
+- Aligns with "pragmatic scope" requirement
+
+AWS Services Stack
+
+- VPC with public/private subnets
+- Application Load Balancer (ALB)
+- ECS Cluster with Fargate
+- Docker Hub for container images
+- AWS Secrets Manager for API keys
+- CloudWatch for observability
+- IAM roles with least privilege
+
+
+Security Controls
+
+- API Key Authentication via Kong plugin
+- AWS Secrets Manager for sensitive config
+- VPC Security Groups - restrict ingress to ALB only
+- IAM Roles with minimal permissions
+
+
+Reliability Features
+
+- Rate limiting via Kong (e.g., 100 req/min per API key)
+- Health checks on ALB targeting service /healthz
+- Graceful shutdown handling in Go service
+- Auto-scaling based on CPU/memory (ECS service scaling)
+- ALB should monitor /healthz for target group health
+- Kong should also monitor service health for circuit breaking
+
+CI/CD Pipelines (GitHub Actions)
+
+- Terraform check (verify linting etc)
+-  Plan Infrastructure (terraform plan)
+- Deploy Infrastructure (terraform apply)
+- Deploy Application (push to Docker Hub, update ECS witht the latest tag (smooth deployment without downtime?))
+
+
+Observability Stack
+
+- Logs: CloudWatch Logs with structured logging (JSON)
+- Metrics: CloudWatch custom metrics + ECS/ALB metrics
+- Dashboard: CloudWatch Dashboard
+- Alerting: CloudWatch Alarms (high error rate, response time)
+
+Note: i'll not use localstack at all but rather do thing directly on my real AWS account
+---

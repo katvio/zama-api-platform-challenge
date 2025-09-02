@@ -1,0 +1,109 @@
+Home
+/
+Kong Plugin Hub
+Edit this Page
+Report an Issue
+
+Rate Limiting
+Overview
+Examples
+Configuration reference
+Changelog
+Rate limit how many HTTP requests can be made in a given period of seconds, minutes, hours, days, months, or years. If the underlying Gateway Service or Route has no authentication layer, the client IP address is used for identifying clients. Otherwise, the Consumer is used if an authentication plugin has been configured.
+
+The advanced version of this plugin, Rate Limiting Advanced, provides the ability to apply multiple limits in sliding or fixed windows, and includes Redis Sentinel and Redis Cluster support.
+
+Kong also provides multiple specialized rate limiting plugins, including rate limiting across LLMs and GraphQL queries. See Rate Limiting in Kong Gateway to choose the plugin that is most useful in your use case.
+
+Strategies
+The Rate Limiting plugin supports three rate limiting strategies: local, cluster, and redis.
+
+This is controlled by the config.policy parameter.
+
+Strategy
+
+Description
+
+Pros
+
+Cons
+
+local	Counters are stored in-memory on the node.	Minimal performance impact.	Less accurate. Unless there’s a consistent-hashing load balancer in front of Kong Gateway, it diverges when scaling the number of nodes.
+cluster	Counters are stored in the Kong Gateway data store and shared across nodes.	Accurate1, no extra components to support.	Each request forces a read and a write on the data store. Therefore, relatively, the biggest performance impact.
+Not supported in hybrid mode or Konnect deployments.
+redis	Counters are stored on a Redis server and shared across nodes.	Accurate1, less performance impact than a cluster policy.	Needs a Redis installation. Bigger performance impact than a local policy.
+[1]: Only when config.sync_rate option is set to 0 (synchronous behavior).
+
+Two common use cases for rate limiting are:
+
+Every transaction counts: The highest level of accuracy is needed. An example is a transaction with financial consequences.
+Backend protection: Accuracy is not as relevant. The requirement is only to protect backend services from overloading that’s caused either by specific users or by attacks.
+Every transaction counts
+In this scenario, because accuracy is important, the local policy is not an option. Consider the support effort you might need for Redis, and then choose either cluster or redis.
+
+You could start with the cluster policy, and move to redis if performance reduces drastically.
+
+If using a very high sync frequency, use redis. Very high sync frequencies with cluster mode are not scalable and not recommended. The sync frequency becomes higher when the sync_rate setting is a lower number - for example, a sync_rate of 0.1 is a much higher sync frequency (10 counter syncs per second) than a sync_rate of 1 (1 counter sync per second).
+
+You can calculate what is considered a very high sync rate in your environment based on your topology, number of plugins, their sync rates, and tolerance for loose rate limits.
+
+If you choose to switch strategies, note that you can’t port the existing usage metrics from the Kong Gateway data store to Redis. This might not be a problem with short-lived metrics (for example, seconds or minutes) but if you use metrics with a longer time frame (for example, months), plan your switch carefully.
+
+Backend protection
+If accuracy is less important, choose the local policy. You might need to experiment a little before you get a setting that works for your scenario. As the cluster scales to more nodes, more user requests are handled. When the cluster scales down, the probability of false negatives increases. Make sure to adjust your rate limits when scaling.
+
+For example, if a user can make 100 requests every second, and you have an equally balanced 5-node Kong Gateway cluster, you can set the local limit to 30 requests every second. If you see too many false negatives, increase the limit.
+
+To minimize inaccuracies, consider using a consistent-hashing load balancer in front of Kong Gateway. The load balancer ensures that a user is always directed to the same Kong Gateway node, which reduces inaccuracies and prevents scaling problems.
+
+Limit by IP address
+If limiting by IP address, it’s important to understand how Kong Gateway determines the IP address of an incoming request.
+
+The IP address is extracted from the request headers sent to Kong Gateway by downstream clients. Typically, these headers are named X-Real-IP or X-Forwarded-For.
+
+By default, Kong Gateway uses the header name X-Real-IP to identify the client’s IP address. If your environment requires a different header, you can specify this by setting the real_ip_header Nginx property. Depending on your network setup, you may also need to configure the trusted_ips Nginx property to include the load balancer IP address. This ensures that Kong Gateway correctly interprets the client’s IP address, even when the request passes through multiple network layers.
+
+Headers sent to the client
+When this plugin is enabled, Kong Gateway sends some additional headers back to the client, indicating the state of the rate limiting policies in place:
+
+Header
+
+Description
+
+RateLimit-Limit	Allowed limit in the timeframe.
+RateLimit-Remaining	Number of available requests remaining.
+RateLimit-Reset	The time remaining, in seconds, until the rate limit quota is reset.
+X-RateLimit-Limit-Second	The time limit, in number of seconds.
+X-RateLimit-Limit-Minute	The time limit, in number of minutes.
+X-RateLimit-Limit-Day	The time limit, in number of days.
+X-RateLimit-Limit-Month	The time limit, in number of months.
+X-RateLimit-Limit-Year	The time limit, in number of years.
+X-RateLimit-Remaining-Second	The number of seconds still left in the time frame.
+X-RateLimit-Remaining-Minute	The number of minutes still left in the time frame.
+X-RateLimit-Remaining-Day	The number of days still left in the time frame.
+X-RateLimit-Remaining-Month	The number of months still left in the time frame.
+X-RateLimit-Remaining-Year	The number of years still left in the time frame.
+Retry-After	This header appears on 429 errors, indicating how long the upstream service is expected to be unavailable to the client.
+You can optionally hide the limit and remaining headers with the config.hide_client_headers option.
+
+If more than one limit is set, the plugin returns multiple time limit headers. For example:
+
+X-RateLimit-Limit-Second: 5
+X-RateLimit-Remaining-Second: 4
+X-RateLimit-Limit-Minute: 10
+X-RateLimit-Remaining-Minute: 9
+Copied to clipboard!
+If any of the limits are reached, the plugin returns an HTTP/1.1 429 status code to the client with the following JSON body:
+
+{ "message": "API rate limit exceeded" }
+Copied to clipboard!
+The headers RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset are based on the Internet-Draft RateLimit Header Fields for HTTP and may change in the future to respect specification updates.
+
+FAQs
+Can I set different rate limits for different endpoints or services?
+
+Yes, you can configure rate limits on a per-service or per-route basis by applying the Rate Limiting plugin to specific services or routes in Kong.
+
+How does the policy option affect rate limiting?
+
+The policy option determines how rate limits are stored and enforced. The local policy uses Kong’s in-memory storage, while the redis policy uses Redis, which is useful for distributed setups where rate limiting needs to be consistent across multiple Kong data plane nodes.

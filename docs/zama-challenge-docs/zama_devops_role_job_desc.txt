@@ -1,0 +1,69 @@
+zama devops role job desc.txt
+---
+API Platform Site Reliability
+Engineer (SRE)
+This position is in Zama’s Developer Platform team
+Zama recently unveiled the Zama Confidential Blockchain Protocol, which
+enables confidential smart contracts on top of any blockchain L1 or L2 using
+Fully Homomorphic Encryption (FHE). The Zama Developer Platform (ZDP) is
+our managed gateway that lets internal teams and external developers use the
+open-source Zama Protocol through simple, authenticated HTTPS endpoints.
+Think Infura or Alchemy, but confidential by default.
+We are looking for a hands-on DevOps/Site Reliability Engineer (SRE) to design,
+build, and operate the cloud and platform foundations of ZDP. You will help
+shape the front door to Zama’s privacy-preserving technology. Your work will
+remove complexity for developers, accelerate internal iteration, and underpin
+how confidential applications get built and scaled.
+What you will do
+Own and operate the Zama Developer Platform API management layer and
+developer portal, including API key lifecycle, rate limits, quotas, and tenant
+policies.
+Write and maintain small services, CLIs and gateway plugins for the
+platform, primarily in Go or Rust, with tests and code reviews.
+Build reliable CI/CD, environment isolation, and release automation that
+supports frequent, safe changes for ZDP Relayer, client SDKs, and other
+components.
+Establish end-to-end observability with structured logs, metrics, traces,
+SLOs, and actionable alerting, then iterate based on what you learn.
+Deliver security-by-default: least-privilege access, secrets management,
+strong authentication on admin surfaces, audit trails, and appropriate edge
+protections.
+Create and maintain runbooks, contribute to on-call and incident response,
+and drive post-incident improvements.
+API Platform Site Reliability Engineer (SRE) 1
+Reduce toil by automating runbooks and incident tooling, including load and
+failure testing.
+Profile performance and cost across the stack and make pragmatic
+optimisations.
+Shape our approach to multi-region and horizontal scaling, including data
+residency considerations such as GDPR and disaster recovery.
+Collaborate widely, contribute to technical direction, and help improve
+engineering practices over time.
+What you will bring
+5+ years in Site Reliability Engineering (SRE), DevOps, or platform
+engineering roles.
+Strong knowledge of DevOps for blockchain infrastructure, especially for
+Ethereum-based blockchains, primarily on AWS.
+Experience with API management platforms such as Tyk, Kong Konnect, or
+WSO2, including custom policies or plugins.
+Familiarity with identity platforms (IdPs) such as Auth0, Okta, Keycloak,
+LogTo etc and configuring identity/authorization engines for OpenID
+Connect (OIDC), OAuth 2.0, and service-to-service auth.
+Ability to build production-grade tooling or small services in Go or Rust,
+plus a scripting language such as Python or TypeScript.
+Strong infrastructure as code skills, for example Terraform/OpenTofu,
+Terragrunt, or Pulumi.
+Nice to have
+Knowledge of applying Cloudflare Web Application Firewall (WAF), API
+management, and Page Rules engine for traffic management.
+Competence with CI/CD (for example GitHub Actions) and release
+engineering.
+Practical knowledge of observability stacks and SLO-driven operations.
+Prior experience with creating/managing runbooks for on-call operations.
+API Platform Site Reliability Engineer (SRE) 2
+Hands-on experience of load testing, chaos testing, or failure-injection
+testing.
+Familiarity with cost and performance tuning through code changes, not
+only instance sizing.
+Only candidates based in +/-4 hours of UTC are suitable for this role.
+---
