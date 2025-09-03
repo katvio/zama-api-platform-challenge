@@ -55,6 +55,16 @@ data "terraform_remote_state" "networking" {
   }
 }
 
+# Data source for compute state to get ALB DNS name
+data "terraform_remote_state" "compute" {
+  backend = "s3"
+  config = {
+    bucket = var.terraform_state_bucket
+    key    = "compute/terraform.tfstate"
+    region = var.aws_region
+  }
+}
+
 # Observability Module
 module "observability" {
   source = "../../../modules/observability"
@@ -66,6 +76,11 @@ module "observability" {
   
   # VPC info from networking state
   vpc_id = data.terraform_remote_state.networking.outputs.vpc_id
+  
+  # Enhanced monitoring configuration
+  alert_email   = var.alert_email
+  alb_dns_name  = try(data.terraform_remote_state.compute.outputs.alb_dns_name, "")
+  api_port      = var.api_port
   
   log_retention_days = var.log_retention_days
   

@@ -52,7 +52,7 @@ output "sns_topic_name" {
 
 output "alarm_names" {
   description = "Names of all created CloudWatch alarms"
-  value = [
+  value = concat([
     aws_cloudwatch_metric_alarm.high_error_rate.alarm_name,
     aws_cloudwatch_metric_alarm.high_response_time.alarm_name,
     aws_cloudwatch_metric_alarm.api_cpu_high.alarm_name,
@@ -60,7 +60,15 @@ output "alarm_names" {
     aws_cloudwatch_metric_alarm.kong_cpu_high.alarm_name,
     aws_cloudwatch_metric_alarm.unhealthy_tasks.alarm_name,
     aws_cloudwatch_metric_alarm.api_error_count.alarm_name
-  ]
+  ],
+  var.alb_dns_name != "" ? [
+    aws_cloudwatch_metric_alarm.alb_unhealthy_targets[0].alarm_name,
+    aws_cloudwatch_metric_alarm.no_healthy_targets[0].alarm_name,
+    aws_cloudwatch_metric_alarm.low_request_count[0].alarm_name,
+    aws_cloudwatch_metric_alarm.health_endpoint_slow_response[0].alarm_name,
+    aws_cloudwatch_metric_alarm.alb_connection_errors[0].alarm_name
+  ] : []
+  )
 }
 
 output "metric_filter_names" {

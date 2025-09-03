@@ -34,3 +34,17 @@ variable "log_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "alert_email" {
+  description = "Email address for alert notifications"
+  type        = string
+  default     = ""
+}
+
+
+
+variable "api_port" {
+  description = "Port number for the API service"
+  type        = number
+  default     = 8080
+}

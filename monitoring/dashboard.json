@@ -1,0 +1,158 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "zama-api-platform-dev-alb"],
+          ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "zama-api-platform-dev-alb"],
+          ["AWS/ApplicationELB", "HTTPCode_Target_2XX_Count", "LoadBalancer", "zama-api-platform-dev-alb"],
+          ["AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", "LoadBalancer", "zama-api-platform-dev-alb"],
+          ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", "zama-api-platform-dev-alb"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "eu-west-1",
+        "title": "Application Load Balancer Metrics",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/ECS", "CPUUtilization", "ServiceName", "zama-api-platform-dev-api-service", "ClusterName", "zama-api-platform-dev-cluster"],
+          ["AWS/ECS", "MemoryUtilization", "ServiceName", "zama-api-platform-dev-api-service", "ClusterName", "zama-api-platform-dev-cluster"],
+          ["AWS/ECS", "CPUUtilization", "ServiceName", "zama-api-platform-dev-kong-service", "ClusterName", "zama-api-platform-dev-cluster"],
+          ["AWS/ECS", "MemoryUtilization", "ServiceName", "zama-api-platform-dev-kong-service", "ClusterName", "zama-api-platform-dev-cluster"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "eu-west-1",
+        "title": "ECS Service Resource Utilization",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/ECS", "RunningTaskCount", "ServiceName", "zama-api-platform-dev-api-service", "ClusterName", "zama-api-platform-dev-cluster"],
+          ["AWS/ECS", "PendingTaskCount", "ServiceName", "zama-api-platform-dev-api-service", "ClusterName", "zama-api-platform-dev-cluster"],
+          ["AWS/ECS", "RunningTaskCount", "ServiceName", "zama-api-platform-dev-kong-service", "ClusterName", "zama-api-platform-dev-cluster"],
+          ["AWS/ECS", "PendingTaskCount", "ServiceName", "zama-api-platform-dev-kong-service", "ClusterName", "zama-api-platform-dev-cluster"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "eu-west-1",
+        "title": "ECS Task Counts",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/ecs/zama-api-platform-dev-api' | fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20",
+        "region": "eu-west-1",
+        "title": "Recent API Errors",
+        "view": "table"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["ZamaAPI/Errors", "zama-api-platform-dev-api-error-count"],
+          ["ZamaAPI/Kong", "zama-api-platform-dev-kong-error-count"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "eu-west-1",
+        "title": "Custom Error Metrics",
+        "period": 300,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", "zama-api-platform-dev-api-tg", "LoadBalancer", "zama-api-platform-dev-alb"],
+          ["AWS/ApplicationELB", "UnHealthyHostCount", "TargetGroup", "zama-api-platform-dev-api-tg", "LoadBalancer", "zama-api-platform-dev-alb"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "eu-west-1",
+        "title": "Target Group Health",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "log",
+      "x": 16,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/ecs/zama-api-platform-dev-api' | fields @timestamp, method, path, status_code, latency_ms | filter type = \"http_request\" | stats avg(latency_ms) by bin(5m)",
+        "region": "eu-west-1",
+        "title": "Average Response Time (5min)",
+        "view": "table"
+      }
+    }
+  ]
+}

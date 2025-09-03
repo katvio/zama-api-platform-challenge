@@ -37,3 +37,23 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "alert_email" {
+  description = "Email address for alert notifications"
+  type        = string
+  default     = ""
+}
+
+
+
+variable "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  type        = string
+  default     = ""
+}
+
+variable "api_port" {
+  description = "Port number for the API service"
+  type        = number
+  default     = 8080
+}

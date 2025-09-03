@@ -1,0 +1,153 @@
+{
+  "alarms": [
+    {
+      "name": "zama-api-platform-dev-high-error-rate",
+      "description": "Triggers when 5XX error count exceeds threshold",
+      "metric": {
+        "namespace": "AWS/ApplicationELB",
+        "metric_name": "HTTPCode_Target_5XX_Count",
+        "dimensions": {
+          "LoadBalancer": "zama-api-platform-dev-alb"
+        },
+        "statistic": "Sum",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 10,
+        "comparison_operator": "GreaterThanThreshold"
+      },
+      "severity": "HIGH",
+      "runbook": "Check application logs for errors, verify ECS task health, check Kong gateway logs"
+    },
+    {
+      "name": "zama-api-platform-dev-high-response-time",
+      "description": "Triggers when average response time exceeds 2 seconds",
+      "metric": {
+        "namespace": "AWS/ApplicationELB",
+        "metric_name": "TargetResponseTime",
+        "dimensions": {
+          "LoadBalancer": "zama-api-platform-dev-alb"
+        },
+        "statistic": "Average",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 2.0,
+        "comparison_operator": "GreaterThanThreshold"
+      },
+      "severity": "MEDIUM",
+      "runbook": "Check ECS service CPU/Memory utilization, review application performance metrics, verify database performance if applicable"
+    },
+    {
+      "name": "zama-api-platform-dev-api-cpu-high",
+      "description": "Triggers when API service CPU utilization exceeds 80%",
+      "metric": {
+        "namespace": "AWS/ECS",
+        "metric_name": "CPUUtilization",
+        "dimensions": {
+          "ServiceName": "zama-api-platform-dev-api-service",
+          "ClusterName": "zama-api-platform-dev-cluster"
+        },
+        "statistic": "Average",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 80,
+        "comparison_operator": "GreaterThanThreshold"
+      },
+      "severity": "MEDIUM",
+      "runbook": "Consider scaling up ECS service, review application performance, check for CPU-intensive operations"
+    },
+    {
+      "name": "zama-api-platform-dev-api-memory-high",
+      "description": "Triggers when API service memory utilization exceeds 80%",
+      "metric": {
+        "namespace": "AWS/ECS",
+        "metric_name": "MemoryUtilization",
+        "dimensions": {
+          "ServiceName": "zama-api-platform-dev-api-service",
+          "ClusterName": "zama-api-platform-dev-cluster"
+        },
+        "statistic": "Average",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 80,
+        "comparison_operator": "GreaterThanThreshold"
+      },
+      "severity": "MEDIUM",
+      "runbook": "Check for memory leaks, review application memory usage patterns, consider increasing task memory allocation"
+    },
+    {
+      "name": "zama-api-platform-dev-kong-cpu-high",
+      "description": "Triggers when Kong Gateway CPU utilization exceeds 80%",
+      "metric": {
+        "namespace": "AWS/ECS",
+        "metric_name": "CPUUtilization",
+        "dimensions": {
+          "ServiceName": "zama-api-platform-dev-kong-service",
+          "ClusterName": "zama-api-platform-dev-cluster"
+        },
+        "statistic": "Average",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 80,
+        "comparison_operator": "GreaterThanThreshold"
+      },
+      "severity": "MEDIUM",
+      "runbook": "Review Kong Gateway performance, check plugin configurations, consider scaling Kong service"
+    },
+    {
+      "name": "zama-api-platform-dev-unhealthy-tasks",
+      "description": "Triggers when running task count falls below 1",
+      "metric": {
+        "namespace": "AWS/ECS",
+        "metric_name": "RunningTaskCount",
+        "dimensions": {
+          "ServiceName": "zama-api-platform-dev-api-service",
+          "ClusterName": "zama-api-platform-dev-cluster"
+        },
+        "statistic": "Average",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 1,
+        "comparison_operator": "LessThanThreshold"
+      },
+      "severity": "CRITICAL",
+      "runbook": "Check ECS service health, verify task definitions, check CloudWatch logs for task failures, verify ALB health checks"
+    },
+    {
+      "name": "zama-api-platform-dev-api-error-count",
+      "description": "Triggers when application error count from logs exceeds threshold",
+      "metric": {
+        "namespace": "ZamaAPI/Errors",
+        "metric_name": "zama-api-platform-dev-api-error-count",
+        "statistic": "Sum",
+        "period": 300,
+        "evaluation_periods": 2,
+        "threshold": 5,
+        "comparison_operator": "GreaterThanThreshold"
+      },
+      "severity": "HIGH",
+      "runbook": "Check application logs for specific error details, verify input validation, check external dependencies"
+    }
+  ],
+  "notification_settings": {
+    "sns_topic": "zama-api-platform-dev-alerts",
+    "email_endpoints": [
+      "devops@example.com"
+    ],
+    "slack_webhook": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  },
+  "escalation_policy": {
+    "critical": {
+      "immediate_notification": true,
+      "escalation_time_minutes": 15,
+      "on_call_rotation": ["primary_engineer", "secondary_engineer", "manager"]
+    },
+    "high": {
+      "immediate_notification": true,
+      "escalation_time_minutes": 30
+    },
+    "medium": {
+      "immediate_notification": false,
+      "escalation_time_minutes": 60
+    }
+  }
+}

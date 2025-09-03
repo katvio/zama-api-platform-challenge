@@ -291,13 +291,14 @@ resource "aws_sns_topic_policy" "alerts" {
   })
 }
 
-# Example SNS Subscription (Email)
-# Uncomment and modify for actual use
-# resource "aws_sns_topic_subscription" "email_alerts" {
-#   topic_arn = aws_sns_topic.alerts.arn
-#   protocol  = "email"
-#   endpoint  = "your-email@example.com"
-# }
+# SNS Email Subscription for Alerts
+resource "aws_sns_topic_subscription" "email_alerts" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+  
+  depends_on = [aws_sns_topic.alerts]
+}
 
 # Custom Metric Filter for API Errors
 resource "aws_cloudwatch_log_metric_filter" "api_errors" {
@@ -346,3 +347,130 @@ resource "aws_cloudwatch_metric_alarm" "api_error_count" {
 
 # Data source for current AWS account
 data "aws_caller_identity" "current" {}
+
+# Enhanced ALB-based Health Check Monitoring
+# This approach uses existing ALB health checks and adds simple Lambda monitoring
+
+# Additional Alarm for ALB Target Health
+resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_targets" {
+  count               = var.alb_dns_name != "" ? 1 : 0
+  alarm_name          = "${var.name_prefix}-alb-unhealthy-targets"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "0"
+  alarm_description   = "This metric monitors unhealthy targets in ALB target group"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    LoadBalancer = "${var.name_prefix}-alb"
+    TargetGroup  = "${var.name_prefix}-api-tg"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-alb-unhealthy-targets-alarm"
+  })
+}
+
+# Alarm for Zero Healthy Targets (Service Down)
+resource "aws_cloudwatch_metric_alarm" "no_healthy_targets" {
+  count               = var.alb_dns_name != "" ? 1 : 0
+  alarm_name          = "${var.name_prefix}-no-healthy-targets"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "HealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "1"
+  alarm_description   = "CRITICAL: No healthy targets available - service is down"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    LoadBalancer = "${var.name_prefix}-alb"
+    TargetGroup  = "${var.name_prefix}-api-tg"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-no-healthy-targets-alarm"
+  })
+}
+
+# Additional ALB-based Monitoring (Pure Infrastructure Approach)
+
+# Monitor ALB Request Count as a proxy for service availability
+resource "aws_cloudwatch_metric_alarm" "low_request_count" {
+  count               = var.alb_dns_name != "" ? 1 : 0
+  alarm_name          = "${var.name_prefix}-low-request-count"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "3"
+  metric_name         = "RequestCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "This metric detects when no requests are being processed (possible service outage)"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    LoadBalancer = "${var.name_prefix}-alb"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-low-request-count-alarm"
+  })
+}
+
+# Monitor ALB Response Time for Health Endpoint Performance
+resource "aws_cloudwatch_metric_alarm" "health_endpoint_slow_response" {
+  count               = var.alb_dns_name != "" ? 1 : 0
+  alarm_name          = "${var.name_prefix}-health-endpoint-slow-response"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "TargetResponseTime"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "5"
+  alarm_description   = "Health endpoint is responding slowly (may indicate service issues)"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = "${var.name_prefix}-alb"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-health-endpoint-slow-response-alarm"
+  })
+}
+
+# Monitor for ALB Connection Errors (Service Down Indicator)
+resource "aws_cloudwatch_metric_alarm" "alb_connection_errors" {
+  count               = var.alb_dns_name != "" ? 1 : 0
+  alarm_name          = "${var.name_prefix}-alb-connection-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "TargetConnectionErrorCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "5"
+  alarm_description   = "High number of connection errors to targets (service may be down)"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = "${var.name_prefix}-alb"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-alb-connection-errors-alarm"
+  })
+}
