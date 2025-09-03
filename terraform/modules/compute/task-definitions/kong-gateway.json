@@ -1,0 +1,82 @@
+[
+  {
+    "name": "kong",
+    "image": "${kong_image_uri}",
+    "essential": true,
+    "portMappings": [
+      {
+        "containerPort": ${kong_port},
+        "protocol": "tcp"
+      },
+      {
+        "containerPort": ${kong_admin_port},
+        "protocol": "tcp"
+      }
+    ],
+    "environment": [
+      {
+        "name": "KONG_DATABASE",
+        "value": "off"
+      },
+      {
+        "name": "KONG_DECLARATIVE_CONFIG",
+        "value": "/kong/declarative/kong.yml"
+      },
+      {
+        "name": "KONG_PROXY_ACCESS_LOG",
+        "value": "/dev/stdout"
+      },
+      {
+        "name": "KONG_ADMIN_ACCESS_LOG",
+        "value": "/dev/stdout"
+      },
+      {
+        "name": "KONG_PROXY_ERROR_LOG",
+        "value": "/dev/stderr"
+      },
+      {
+        "name": "KONG_ADMIN_ERROR_LOG",
+        "value": "/dev/stderr"
+      },
+      {
+        "name": "KONG_ADMIN_LISTEN",
+        "value": "0.0.0.0:${kong_admin_port}"
+      },
+      {
+        "name": "KONG_PROXY_LISTEN",
+        "value": "0.0.0.0:${kong_port}"
+      }
+    ],
+    "secrets": [
+      {
+        "name": "KONG_ADMIN_TOKEN",
+        "valueFrom": "${api_keys_secret_arn}:kong_admin_token::"
+      }
+    ],
+    "healthCheck": {
+      "command": [
+        "CMD-SHELL",
+        "curl -f http://localhost:${kong_admin_port}/status || exit 1"
+      ],
+      "interval": 30,
+      "timeout": 5,
+      "retries": 3,
+      "startPeriod": 60
+    },
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${log_group_name}",
+        "awslogs-region": "${aws_region}",
+        "awslogs-stream-prefix": "kong"
+      }
+    },
+    "mountPoints": [
+      {
+        "sourceVolume": "kong-config",
+        "containerPath": "/kong/declarative",
+        "readOnly": true
+      }
+    ]
+  }
+]

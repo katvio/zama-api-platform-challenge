@@ -1,4 +1,4 @@
-# Variables for Zama API Platform Challenge
+# Variables for Compute Infrastructure
 
 variable "aws_region" {
   description = "AWS region for resources"
@@ -24,23 +24,9 @@ variable "environment" {
   default     = "dev"
 }
 
-# Networking Variables
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
+variable "terraform_state_bucket" {
+  description = "S3 bucket name for Terraform state"
   type        = string
-  default     = "10.0.0.0/16"
-}
-
-variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets"
-  type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
-}
-
-variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets"
-  type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.20.0/24"]
 }
 
 # Application Configuration
@@ -50,22 +36,10 @@ variable "api_image_uri" {
   default     = "flentier/demo-go-api-kong:latest"
 }
 
-# Kong Konnect is used instead of self-hosted Kong
-
 variable "api_port" {
   description = "Port for the Go API service"
   type        = number
   default     = 8080
-}
-
-# Kong Konnect ports are managed by Kong
-
-# Security Configuration
-variable "demo_api_key" {
-  description = "Demo API key for testing with Kong Konnect"
-  type        = string
-  sensitive   = true
-  default     = "demo-api-key-12345"
 }
 
 # Scaling Configuration
@@ -75,8 +49,19 @@ variable "api_desired_count" {
   default     = 2
 }
 
-# Kong Konnect scaling is managed by Kong
+variable "api_min_capacity" {
+  description = "Minimum number of API service tasks"
+  type        = number
+  default     = 1
+}
 
+variable "api_max_capacity" {
+  description = "Maximum number of API service tasks"
+  type        = number
+  default     = 10
+}
+
+# Resource Allocation
 variable "api_cpu" {
   description = "CPU units for API service (1024 = 1 vCPU)"
   type        = number
@@ -87,21 +72,6 @@ variable "api_memory" {
   description = "Memory in MB for API service"
   type        = number
   default     = 512
-}
-
-# Kong Konnect resources are managed by Kong
-
-# Monitoring and Alerting
-variable "enable_detailed_monitoring" {
-  description = "Enable detailed CloudWatch monitoring"
-  type        = bool
-  default     = true
-}
-
-variable "log_retention_days" {
-  description = "CloudWatch logs retention in days"
-  type        = number
-  default     = 7
 }
 
 # Health Check Configuration

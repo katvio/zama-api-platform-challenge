@@ -1,0 +1,70 @@
+# Example terraform.tfvars file for Zama API Platform Challenge
+# Copy this file to terraform.tfvars and modify values as needed
+
+# AWS Configuration
+aws_region  = "eu-west-1"
+aws_profile = "platform-admin"
+
+# Project Configuration
+project_name = "zama-api-platform"
+environment  = "dev"
+
+# Networking Configuration
+vpc_cidr = "10.0.0.0/16"
+public_subnet_cidrs = [
+  "10.0.1.0/24",
+  "10.0.2.0/24"
+]
+private_subnet_cidrs = [
+  "10.0.10.0/24",
+  "10.0.20.0/24"
+]
+
+# Docker Images
+api_image_uri  = "flentier/demo-go-api-kong:latest"
+
+# Service Ports
+api_port        = 8080
+
+# Security Configuration (Change these in production!)
+# Kong Konnect API keys will be configured in Kong Konnect dashboard
+demo_api_key     = "demo-api-key-12345"
+
+# Scaling Configuration
+api_desired_count  = 2
+
+# Resource Allocation
+api_cpu    = 256  # 0.25 vCPU
+api_memory = 512  # 512 MB
+
+# Monitoring Configuration
+enable_detailed_monitoring = true
+log_retention_days         = 7
+
+# Health Check Configuration
+health_check_path                = "/healthz"
+health_check_interval            = 30
+health_check_timeout             = 5
+health_check_healthy_threshold   = 2
+health_check_unhealthy_threshold = 3
+
+# Example values for different environments:
+
+# Production Example:
+# project_name = "zama-api-platform"
+# environment  = "prod"
+# vpc_cidr     = "10.1.0.0/16"
+# api_desired_count  = 3
+# api_cpu    = 512
+# api_memory = 1024
+# log_retention_days = 30
+# enable_detailed_monitoring = true
+
+# Staging Example:
+# project_name = "zama-api-platform"
+# environment  = "staging"
+# vpc_cidr     = "10.2.0.0/16"
+# api_desired_count  = 1
+# api_cpu    = 256
+# api_memory = 512
+# log_retention_days = 14

@@ -1,0 +1,49 @@
+[
+  {
+    "name": "api",
+    "image": "${api_image_uri}",
+    "essential": true,
+    "portMappings": [
+      {
+        "containerPort": ${api_port},
+        "protocol": "tcp"
+      }
+    ],
+    "environment": [
+      {
+        "name": "PORT",
+        "value": "${api_port}"
+      },
+      {
+        "name": "GIN_MODE",
+        "value": "release"
+      },
+      {
+        "name": "LOG_LEVEL",
+        "value": "info"
+      },
+      {
+        "name": "LOG_FORMAT",
+        "value": "json"
+      }
+    ],
+    "healthCheck": {
+      "command": [
+        "CMD-SHELL",
+        "curl -f http://localhost:${api_port}/healthz || exit 1"
+      ],
+      "interval": 30,
+      "timeout": 5,
+      "retries": 3,
+      "startPeriod": 60
+    },
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${log_group_name}",
+        "awslogs-region": "${aws_region}",
+        "awslogs-stream-prefix": "api"
+      }
+    }
+  }
+]
