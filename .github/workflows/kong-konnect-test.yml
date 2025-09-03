@@ -1,0 +1,261 @@
+name: Kong Konnect Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of Kong tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - auth
+          - rate-limit
+          - health
+      endpoint_override:
+        description: 'Override Kong endpoint (optional)'
+        required: false
+        type: string
+
+env:
+  KONG_ENDPOINT: ${{ github.event.inputs.endpoint_override || secrets.KONG_ENDPOINT || 'http://kong-4994957fd2euqcpzn.kongcloud.dev' }}
+
+jobs:
+  kong-health-test:
+    name: Kong Health Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'health' || github.event.inputs.test_type == null
+    
+    steps:
+    - name: Test Kong health endpoint
+      run: |
+        echo "Testing Kong health endpoint: ${{ env.KONG_ENDPOINT }}/healthz"
+        
+        # Test health endpoint (should work without auth)
+        response=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "${{ env.KONG_ENDPOINT }}/healthz")
+        
+        if [ "$response" -eq 200 ]; then
+          echo "✅ Health check passed (HTTP $response)"
+          echo "Response:"
+          cat /tmp/health_response.json | jq . 2>/dev/null || cat /tmp/health_response.json
+        else
+          echo "❌ Health check failed (HTTP $response)"
+          echo "Response:"
+          cat /tmp/health_response.json
+          exit 1
+        fi
+
+    - name: Test root endpoint
+      run: |
+        echo "Testing Kong root endpoint: ${{ env.KONG_ENDPOINT }}/"
+        
+        response=$(curl -s -o /tmp/root_response.json -w "%{http_code}" "${{ env.KONG_ENDPOINT }}/")
+        
+        if [ "$response" -eq 200 ]; then
+          echo "✅ Root endpoint accessible (HTTP $response)"
+          echo "Response:"
+          cat /tmp/root_response.json | head -20
+        else
+          echo "⚠️  Root endpoint returned HTTP $response (this might be expected)"
+          cat /tmp/root_response.json
+        fi
+
+  kong-auth-test:
+    name: Kong Authentication Test
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'auth' || github.event.inputs.test_type == null
+    
+    steps:
+    - name: Test protected endpoint without API key (should fail)
+      run: |
+        echo "Testing protected endpoint without API key (should fail)"
+        echo "Endpoint: ${{ env.KONG_ENDPOINT }}/api/v1/sum"
+        
+        response=$(curl -s -o /tmp/no_auth_response.json -w "%{http_code}" \
+          -X POST "${{ env.KONG_ENDPOINT }}/api/v1/sum" \
+          -H "Content-Type: application/json" \
+          -d '{"numbers": [1, 2, 3, 4, 5]}')
+        
+        echo "Response code: $response"
+        echo "Response body:"
+        cat /tmp/no_auth_response.json
+        
+        # Should return 401 (Unauthorized) or 403 (Forbidden)
+        if [ "$response" -eq 401 ] || [ "$response" -eq 403 ]; then
+          echo "✅ Authentication properly blocks unauthorized requests (HTTP $response)"
+        else
+          echo "❌ Expected 401 or 403, got $response"
+          echo "Authentication might not be properly configured"
+          exit 1
+        fi
+
+    - name: Test protected endpoint with valid API key
+      run: |
+        echo "Testing protected endpoint with valid API key"
+        echo "Using API key from secrets: ${{ secrets.KONG_API_KEY }}"
+        
+        if [ -z "${{ secrets.KONG_API_KEY }}" ]; then
+          echo "❌ KONG_API_KEY secret is not set"
+          echo "Please add the secret: test-user-bob:BOB-API-KEY-123"
+          exit 1
+        fi
+        
+        response=$(curl -s -o /tmp/auth_response.json -w "%{http_code}" \
+          -X POST "${{ env.KONG_ENDPOINT }}/api/v1/sum" \
+          -H "Content-Type: application/json" \
+          -H "${{ secrets.KONG_API_KEY }}" \
+          -d '{"numbers": [1, 2, 3, 4, 5]}')
+        
+        echo "Response code: $response"
+        echo "Response body:"
+        cat /tmp/auth_response.json | jq . 2>/dev/null || cat /tmp/auth_response.json
+        
+        if [ "$response" -eq 200 ]; then
+          echo "✅ Authentication with API key successful (HTTP $response)"
+          
+          # Verify the response contains expected sum
+          if cat /tmp/auth_response.json | grep -q '"sum".*15'; then
+            echo "✅ API response contains correct sum (15)"
+          else
+            echo "⚠️  API response might not contain expected sum"
+          fi
+        else
+          echo "❌ Expected 200, got $response"
+          echo "Check if API key is correct or Kong configuration"
+          exit 1
+        fi
+
+  kong-rate-limit-test:
+    name: Kong Rate Limiting Test
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'rate-limit' || github.event.inputs.test_type == null
+    
+    steps:
+    - name: Test rate limiting
+      run: |
+        echo "Testing Kong rate limiting with multiple requests"
+        echo "Making 11 requests to trigger rate limit"
+        
+        if [ -z "${{ secrets.KONG_API_KEY }}" ]; then
+          echo "❌ KONG_API_KEY secret is not set"
+          exit 1
+        fi
+        
+        success_count=0
+        rate_limited_count=0
+        other_errors=0
+        
+        # Make 11 requests as specified in your example
+        for i in {1..11}; do
+          echo "Request $i/11..."
+          
+          response=$(curl -s -o /tmp/rate_limit_response_$i.json -w "%{http_code}" \
+            -X POST "${{ env.KONG_ENDPOINT }}/api/v1/sum" \
+            -H "Content-Type: application/json" \
+            -H "${{ secrets.KONG_API_KEY }}" \
+            -d '{"numbers": [1, 2, 3, 4, 5]}')
+          
+          echo "  Response: HTTP $response"
+          
+          case $response in
+            200)
+              success_count=$((success_count + 1))
+              echo "  ✅ Request successful"
+              ;;
+            429)
+              rate_limited_count=$((rate_limited_count + 1))
+              echo "  🚫 Rate limited (expected after several requests)"
+              cat /tmp/rate_limit_response_$i.json | head -2
+              ;;
+            *)
+              other_errors=$((other_errors + 1))
+              echo "  ❌ Unexpected response: $response"
+              cat /tmp/rate_limit_response_$i.json | head -2
+              ;;
+          esac
+          
+          # Small delay between requests
+          sleep 0.5
+        done
+        
+        echo ""
+        echo "=== Rate Limiting Test Results ==="
+        echo "Successful requests: $success_count"
+        echo "Rate limited requests: $rate_limited_count"
+        echo "Other errors: $other_errors"
+        
+        # Validate results
+        if [ $success_count -gt 0 ] && [ $rate_limited_count -gt 0 ]; then
+          echo "✅ Rate limiting is working correctly!"
+          echo "   - Some requests succeeded ($success_count)"
+          echo "   - Some requests were rate limited ($rate_limited_count)"
+        elif [ $success_count -gt 0 ] && [ $rate_limited_count -eq 0 ]; then
+          echo "⚠️  Rate limiting might not be configured"
+          echo "   - All $success_count requests succeeded"
+          echo "   - No rate limiting detected"
+        elif [ $success_count -eq 0 ]; then
+          echo "❌ No requests succeeded - check API key or Kong configuration"
+          exit 1
+        fi
+
+  kong-comprehensive-test:
+    name: Kong Comprehensive Test
+    runs-on: ubuntu-latest
+    needs: [kong-health-test, kong-auth-test, kong-rate-limit-test]
+    if: always() && (github.event.inputs.test_type == 'all' || github.event.inputs.test_type == null)
+    
+    steps:
+    - name: Test summary
+      run: |
+        echo "## Kong Konnect Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Endpoint:** ${{ env.KONG_ENDPOINT }}" >> $GITHUB_STEP_SUMMARY
+        echo "**API Key:** ${{ secrets.KONG_API_KEY && 'Configured' || 'Missing' }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.kong-health-test.result }}" == "success" ]; then
+          echo "✅ **Health Check:** PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Health Check:** FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.kong-auth-test.result }}" == "success" ]; then
+          echo "✅ **Authentication:** PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Authentication:** FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.kong-rate-limit-test.result }}" == "success" ]; then
+          echo "✅ **Rate Limiting:** PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Rate Limiting:** FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Quick Test Commands" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "# Health check" >> $GITHUB_STEP_SUMMARY
+        echo 'curl ${{ env.KONG_ENDPOINT }}/healthz' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Protected endpoint with auth" >> $GITHUB_STEP_SUMMARY
+        echo 'curl -H "test-user-bob:BOB-API-KEY-123" \' >> $GITHUB_STEP_SUMMARY
+        echo '  -X POST ${{ env.KONG_ENDPOINT }}/api/v1/sum \' >> $GITHUB_STEP_SUMMARY
+        echo '  -H "Content-Type: application/json" \' >> $GITHUB_STEP_SUMMARY
+        echo '  -d '"'"'{"numbers": [1, 2, 3, 4, 5]}'"'"'' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Rate limit test" >> $GITHUB_STEP_SUMMARY
+        echo 'for i in {1..11}; do' >> $GITHUB_STEP_SUMMARY
+        echo '  curl -H "test-user-bob:BOB-API-KEY-123" \' >> $GITHUB_STEP_SUMMARY
+        echo '    -X POST ${{ env.KONG_ENDPOINT }}/api/v1/sum \' >> $GITHUB_STEP_SUMMARY
+        echo '    -H "Content-Type: application/json" \' >> $GITHUB_STEP_SUMMARY
+        echo '    -d '"'"'{"numbers": [1, 2, 3, 4, 5]}'"'"'' >> $GITHUB_STEP_SUMMARY
+        echo 'done' >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY

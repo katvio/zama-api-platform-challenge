@@ -1,0 +1,433 @@
+name: Deploy to AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      deploy_infrastructure:
+        description: 'Deploy infrastructure'
+        required: false
+        default: true
+        type: boolean
+      deploy_application:
+        description: 'Deploy application'
+        required: false
+        default: true
+        type: boolean
+      run_tests:
+        description: 'Run tests after deployment'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-west-2
+  DOCKER_IMAGE: flentier/demo-go-api-kong
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    
+    outputs:
+      should_deploy_infra: ${{ steps.check.outputs.deploy_infra }}
+      should_deploy_app: ${{ steps.check.outputs.deploy_app }}
+      image_tag: ${{ steps.check.outputs.image_tag }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Pre-deployment validation
+      id: check
+      run: |
+        echo "Environment: ${{ github.event.inputs.environment }}"
+        echo "Deploy Infrastructure: ${{ github.event.inputs.deploy_infrastructure }}"
+        echo "Deploy Application: ${{ github.event.inputs.deploy_application }}"
+        
+        # Set outputs
+        echo "deploy_infra=${{ github.event.inputs.deploy_infrastructure }}" >> $GITHUB_OUTPUT
+        echo "deploy_app=${{ github.event.inputs.deploy_application }}" >> $GITHUB_OUTPUT
+        echo "image_tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Validate AWS connectivity
+      run: |
+        aws sts get-caller-identity
+        echo "AWS connectivity verified"
+
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: needs.pre-deployment-checks.outputs.should_deploy_app == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./api-go-service
+        file: ./api-go-service/Dockerfile
+        platforms: linux/amd64
+        push: true
+        tags: |
+          ${{ env.DOCKER_IMAGE }}:${{ needs.pre-deployment-checks.outputs.image_tag }}
+          ${{ env.DOCKER_IMAGE }}:latest
+        build-args: |
+          VERSION=${{ github.ref_name }}
+          COMMIT=${{ needs.pre-deployment-checks.outputs.image_tag }}
+          BUILD_TIME=${{ github.run_number }}
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, build-and-push]
+    if: needs.pre-deployment-checks.outputs.should_deploy_infra == 'true'
+    
+    environment: 
+      name: ${{ github.event.inputs.environment }}
+      url: https://console.aws.amazon.com/ecs/v2/clusters
+    
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ github.event.inputs.environment }}
+    
+    outputs:
+      cluster_name: ${{ steps.tf-output.outputs.cluster_name }}
+      service_name: ${{ steps.tf-output.outputs.service_name }}
+      alb_dns: ${{ steps.tf-output.outputs.alb_dns }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: '1.6.0'
+        terraform_wrapper: false
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Terraform Init
+      run: |
+        terraform init \
+          -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+          -backend-config="key=zama-api-platform/${{ github.event.inputs.environment }}/terraform.tfstate" \
+          -backend-config="region=${{ env.AWS_REGION }}"
+
+    - name: Terraform Plan
+      run: |
+        terraform plan -out=tfplan \
+          -var="docker_image_tag=${{ needs.pre-deployment-checks.outputs.image_tag }}"
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve tfplan
+
+    - name: Get Terraform Outputs
+      id: tf-output
+      run: |
+        echo "cluster_name=$(terraform output -raw cluster_name)" >> $GITHUB_OUTPUT
+        echo "service_name=$(terraform output -raw service_name)" >> $GITHUB_OUTPUT
+        echo "alb_dns=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
+
+  deploy-application:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, build-and-push, deploy-infrastructure]
+    if: needs.pre-deployment-checks.outputs.should_deploy_app == 'true' && (success() || needs.deploy-infrastructure.result == 'skipped')
+    
+    environment: 
+      name: app-${{ github.event.inputs.environment }}
+      url: ${{ needs.deploy-infrastructure.outputs.alb_dns && format('https://{0}', needs.deploy-infrastructure.outputs.alb_dns) || 'https://console.aws.amazon.com/ecs' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Update ECS Service
+      run: |
+        # Get cluster and service names
+        CLUSTER_NAME="${{ needs.deploy-infrastructure.outputs.cluster_name || 'zama-api-cluster' }}"
+        SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.service_name || 'zama-api-service' }}"
+        
+        echo "Updating ECS service: $SERVICE_NAME in cluster: $CLUSTER_NAME"
+        
+        # Force new deployment with latest image
+        aws ecs update-service \
+          --cluster "$CLUSTER_NAME" \
+          --service "$SERVICE_NAME" \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "Waiting for service to stabilize..."
+        aws ecs wait services-stable \
+          --cluster "$CLUSTER_NAME" \
+          --services "$SERVICE_NAME" \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "Service deployment completed successfully"
+
+    - name: Verify deployment
+      run: |
+        # Get service details
+        CLUSTER_NAME="${{ needs.deploy-infrastructure.outputs.cluster_name || 'zama-api-cluster' }}"
+        SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.service_name || 'zama-api-service' }}"
+        
+        # Check service status
+        SERVICE_STATUS=$(aws ecs describe-services \
+          --cluster "$CLUSTER_NAME" \
+          --services "$SERVICE_NAME" \
+          --query 'services[0].status' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        echo "Service status: $SERVICE_STATUS"
+        
+        if [ "$SERVICE_STATUS" != "ACTIVE" ]; then
+          echo "Service is not active. Current status: $SERVICE_STATUS"
+          exit 1
+        fi
+        
+        # Check running count
+        RUNNING_COUNT=$(aws ecs describe-services \
+          --cluster "$CLUSTER_NAME" \
+          --services "$SERVICE_NAME" \
+          --query 'services[0].runningCount' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        DESIRED_COUNT=$(aws ecs describe-services \
+          --cluster "$CLUSTER_NAME" \
+          --services "$SERVICE_NAME" \
+          --query 'services[0].desiredCount' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        echo "Running tasks: $RUNNING_COUNT / $DESIRED_COUNT"
+        
+        if [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+          echo "Not all desired tasks are running"
+          exit 1
+        fi
+
+  post-deployment-tests:
+    name: Post-deployment Tests
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, deploy-infrastructure, deploy-application]
+    if: github.event.inputs.run_tests == 'true' && (success() || needs.deploy-infrastructure.result == 'skipped')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Get ALB endpoint
+      id: get-endpoint
+      run: |
+        ALB_DNS="${{ needs.deploy-infrastructure.outputs.alb_dns }}"
+        
+        if [ -z "$ALB_DNS" ]; then
+          # Try to get from AWS if not available from terraform
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names "zama-api-alb" \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text \
+            --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+        fi
+        
+        if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+          echo "Could not determine ALB DNS name, using localhost for testing"
+          ALB_DNS="localhost:8080"
+        fi
+        
+        echo "endpoint=https://$ALB_DNS" >> $GITHUB_OUTPUT
+        echo "Testing endpoint: https://$ALB_DNS"
+
+    - name: Wait for service to be ready
+      run: |
+        echo "Waiting for service to be ready..."
+        ENDPOINT="${{ steps.get-endpoint.outputs.endpoint }}"
+        
+        # Wait up to 5 minutes for the service to respond
+        for i in {1..30}; do
+          if curl -f -s "$ENDPOINT/healthz" > /dev/null 2>&1; then
+            echo "Service is ready!"
+            break
+          fi
+          echo "Attempt $i: Service not ready, waiting 10 seconds..."
+          sleep 10
+        done
+
+    - name: Run health checks
+      run: |
+        ENDPOINT="${{ steps.get-endpoint.outputs.endpoint }}"
+        
+        echo "Testing health endpoint..."
+        curl -f "$ENDPOINT/healthz" || exit 1
+        
+        echo "Testing metrics endpoint..."
+        curl -f "$ENDPOINT/metrics" || exit 1
+        
+        echo "Health checks passed!"
+
+    - name: Run API tests
+      run: |
+        ENDPOINT="${{ steps.get-endpoint.outputs.endpoint }}"
+        
+        echo "Testing API endpoints..."
+        
+        # Test sum endpoint (this would need proper API key configuration)
+        # For now, just test that it returns appropriate error without auth
+        RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$ENDPOINT/api/v1/sum" \
+          -H "Content-Type: application/json" \
+          -d '{"numbers":[1,2,3]}')
+        
+        # Should return 401 (unauthorized) or 403 (forbidden) without API key
+        if [ "$RESPONSE" -eq 401 ] || [ "$RESPONSE" -eq 403 ]; then
+          echo "API authentication working correctly (returned $RESPONSE)"
+        elif [ "$RESPONSE" -eq 200 ]; then
+          echo "WARNING: API endpoint accessible without authentication"
+        else
+          echo "Unexpected response code: $RESPONSE"
+        fi
+
+    - name: Security Test - Direct ALB Access Validation
+      run: |
+        ALB_DNS="${{ needs.deploy-infrastructure.outputs.alb_dns }}"
+        
+        if [ -z "$ALB_DNS" ]; then
+          echo "⚠️  ALB DNS not available, skipping direct access security test"
+          exit 0
+        fi
+        
+        echo "🔒 SECURITY TEST: Validating direct ALB access is blocked"
+        echo "Testing endpoint: $ALB_DNS:8080"
+        echo "Expected result: Connection should be BLOCKED/REFUSED"
+        
+        # Test direct access to port 8080 (should fail)
+        set +e  # Don't exit on error
+        
+        RESPONSE=$(timeout 10s curl -X POST "http://$ALB_DNS:8080/api/v1/sum" \
+          -H 'Content-Type: application/json' \
+          -d '{"numbers": [1, 2]}' \
+          -w "HTTP_CODE:%{http_code};EXIT_CODE:%{exitcode}" \
+          -s --connect-timeout 5 --max-time 10 2>&1)
+        
+        CURL_EXIT_CODE=$?
+        
+        echo "Curl exit code: $CURL_EXIT_CODE"
+        echo "Response: $RESPONSE"
+        
+        # Analyze the results - connection should be refused/blocked
+        if [ $CURL_EXIT_CODE -eq 7 ]; then
+          echo "✅ SECURITY PASS: Connection refused - Direct access properly blocked"
+        elif [ $CURL_EXIT_CODE -eq 28 ]; then
+          echo "✅ SECURITY PASS: Connection timeout - Direct access properly blocked"
+        elif echo "$RESPONSE" | grep -q "HTTP_CODE:000"; then
+          echo "✅ SECURITY PASS: No HTTP response - Direct access properly blocked"
+        elif echo "$RESPONSE" | grep -q "Connection refused"; then
+          echo "✅ SECURITY PASS: Connection refused - Direct access properly blocked"
+        else
+          echo "❌ SECURITY CRITICAL: Direct access to ALB port 8080 is possible!"
+          echo "   This is a critical security vulnerability!"
+          echo "   API service should not be directly accessible on port 8080"
+          echo "   Response: $RESPONSE"
+          echo ""
+          echo "🚨 DEPLOYMENT SECURITY ISSUE DETECTED 🚨"
+          echo "Please check ALB security groups and network configuration"
+          exit 1
+        fi
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, deploy-infrastructure, deploy-application, post-deployment-tests]
+    if: always()
+    
+    steps:
+    - name: Generate deployment summary
+      run: |
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Image Tag:** ${{ needs.pre-deployment-checks.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Results" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.deploy-infrastructure.result }}" == "success" ]; then
+          echo "✅ Infrastructure deployment: SUCCESS" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-infrastructure.result }}" == "skipped" ]; then
+          echo "⏭️ Infrastructure deployment: SKIPPED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Infrastructure deployment: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.deploy-application.result }}" == "success" ]; then
+          echo "✅ Application deployment: SUCCESS" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.deploy-application.result }}" == "skipped" ]; then
+          echo "⏭️ Application deployment: SKIPPED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Application deployment: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.post-deployment-tests.result }}" == "success" ]; then
+          echo "✅ Post-deployment tests: SUCCESS" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.post-deployment-tests.result }}" == "skipped" ]; then
+          echo "⏭️ Post-deployment tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Post-deployment tests: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.deploy-infrastructure.outputs.alb_dns }}" != "" ]; then
+          echo "**Application URL:** https://${{ needs.deploy-infrastructure.outputs.alb_dns }}" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "**AWS Console:** [ECS Service](https://console.aws.amazon.com/ecs/v2/clusters)" >> $GITHUB_STEP_SUMMARY

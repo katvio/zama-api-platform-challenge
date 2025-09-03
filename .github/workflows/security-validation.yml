@@ -1,0 +1,113 @@
+name: Security Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      alb_endpoint:
+        description: 'ALB endpoint to test (e.g., your-alb-dns.amazonaws.com)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: us-west-2
+
+jobs:
+  security-test:
+    name: Direct Access Security Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Configure AWS credentials
+      if: github.event.inputs.alb_endpoint == ''
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Get ALB endpoint
+      id: get-alb
+      run: |
+        if [ -n "${{ github.event.inputs.alb_endpoint }}" ]; then
+          ALB_DNS="${{ github.event.inputs.alb_endpoint }}"
+          echo "Using provided ALB endpoint: $ALB_DNS"
+        else
+          # Try to find ALB automatically
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --query 'LoadBalancers[?starts_with(LoadBalancerName, `zama-api`)].DNSName' \
+            --output text \
+            --region ${{ env.AWS_REGION }} 2>/dev/null | head -1 || echo "")
+        fi
+        
+        if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+          echo "⚠️  No ALB endpoint found. Skipping test."
+          echo "   To test manually, provide ALB endpoint via workflow input"
+          echo "skip_test=true" >> $GITHUB_OUTPUT
+        else
+          echo "alb_endpoint=$ALB_DNS" >> $GITHUB_OUTPUT
+          echo "skip_test=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Test Direct API Access (Should be BLOCKED)
+      if: steps.get-alb.outputs.skip_test != 'true'
+      run: |
+        ALB_ENDPOINT="${{ steps.get-alb.outputs.alb_endpoint }}"
+        
+        echo "🔒 Testing direct access to: $ALB_ENDPOINT:8080"
+        echo "Expected: Connection should be REFUSED/BLOCKED"
+        
+        # Test the exact command from the user's requirements
+        set +e
+        RESPONSE=$(timeout 10s curl -X POST "http://$ALB_ENDPOINT:8080/api/v1/sum" \
+          -H 'Content-Type: application/json' \
+          -d '{"numbers": [1, 2]}' \
+          -w "HTTP_CODE:%{http_code}" \
+          -s --connect-timeout 5 --max-time 10 2>&1)
+        
+        EXIT_CODE=$?
+        echo "Exit code: $EXIT_CODE"
+        echo "Response: $RESPONSE"
+        
+        # Check if access is properly blocked
+        if [ $EXIT_CODE -eq 7 ] || [ $EXIT_CODE -eq 28 ] || [ $EXIT_CODE -eq 6 ]; then
+          echo "✅ SECURITY PASS: Direct access is blocked (exit code $EXIT_CODE)"
+        elif echo "$RESPONSE" | grep -q "HTTP_CODE:000"; then
+          echo "✅ SECURITY PASS: No HTTP response - access blocked"
+        else
+          echo "❌ SECURITY FAIL: Direct access to port 8080 is possible!"
+          echo "   This is a critical security vulnerability!"
+          exit 1
+        fi
+
+    - name: Test Standard Ports (Should work)
+      if: steps.get-alb.outputs.skip_test != 'true'
+      run: |
+        ALB_ENDPOINT="${{ steps.get-alb.outputs.alb_endpoint }}"
+        
+        echo "ℹ️  Testing standard ALB ports (should work):"
+        
+        # Test port 80
+        HTTP_CODE=$(timeout 5s curl -s -o /dev/null -w "%{http_code}" "http://$ALB_ENDPOINT/" 2>/dev/null || echo "000")
+        echo "Port 80 (HTTP): $HTTP_CODE"
+        
+        # Test port 443
+        HTTPS_CODE=$(timeout 5s curl -s -o /dev/null -w "%{http_code}" -k "https://$ALB_ENDPOINT/" 2>/dev/null || echo "000")
+        echo "Port 443 (HTTPS): $HTTPS_CODE"
+
+    - name: Manual Test Instructions
+      if: steps.get-alb.outputs.skip_test == 'true'
+      run: |
+        echo "📋 MANUAL TEST REQUIRED"
+        echo "======================"
+        echo "Run this command with your ALB DNS:"
+        echo ""
+        echo "curl -X POST http://YOUR-ALB-DNS:8080/api/v1/sum \\"
+        echo "  -H 'Content-Type: application/json' \\"
+        echo "  -d '{\"numbers\": [1, 2]}' -vvv"
+        echo ""
+        echo "Expected: Connection refused or timeout"
+        echo "If successful: SECURITY ISSUE!"

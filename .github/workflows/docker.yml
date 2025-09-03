@@ -1,0 +1,173 @@
+name: Docker Build & Push
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'api-go-service/**'
+      - '.github/workflows/docker.yml'
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'api-go-service/**'
+      - '.github/workflows/docker.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: false
+        default: 'latest'
+        type: string
+      push:
+        description: 'Push to Docker Hub'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  DOCKER_IMAGE: flentier/demo-go-api-kong
+  REGISTRY: docker.io
+
+jobs:
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+    - name: Set build arguments
+      id: build-args
+      run: |
+        echo "VERSION=$(git describe --tags --always --dirty)" >> $GITHUB_OUTPUT
+        echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./api-go-service
+        file: ./api-go-service/Dockerfile
+        platforms: linux/amd64
+        push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false' || github.event.inputs.push == null) }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          VERSION=${{ steps.build-args.outputs.VERSION }}
+          COMMIT=${{ steps.build-args.outputs.COMMIT }}
+          BUILD_TIME=${{ steps.build-args.outputs.BUILD_TIME }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Test Docker image
+      if: github.event_name != 'pull_request'
+      run: |
+        # Pull the image we just built
+        docker pull ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest
+        
+        # Run the container in background
+        docker run -d --name test-container -p 8080:8080 ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest
+        
+        # Wait for container to start
+        sleep 10
+        
+        # Test health endpoint
+        curl -f http://localhost:8080/healthz || exit 1
+        curl -f http://localhost:8080/metrics || exit 1
+        
+        # Cleanup
+        docker stop test-container
+        docker rm test-container
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Run Grype vulnerability scanner
+      uses: anchore/scan-action@v3
+      with:
+        image: '${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest'
+        fail-build: false
+        severity-cutoff: high
+
+    - name: Upload Grype scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
+
+  update-deployment:
+    name: Update ECS Deployment
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Update ECS service
+      run: |
+        # Get the latest image tag
+        IMAGE_TAG=$(git rev-parse --short HEAD)
+        
+        # Update ECS task definition with new image
+        aws ecs update-service \
+          --cluster zama-api-cluster \
+          --service zama-api-service \
+          --force-new-deployment \
+          --region ${{ secrets.AWS_REGION }}
+        
+        echo "ECS service update initiated for image: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:$IMAGE_TAG"
