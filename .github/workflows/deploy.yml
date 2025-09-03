@@ -186,8 +186,8 @@ jobs:
     - name: Update ECS Service
       run: |
         # Get cluster and service names
-        CLUSTER_NAME="${{ needs.deploy-infrastructure.outputs.cluster_name || 'zama-api-cluster' }}"
-        SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.service_name || 'zama-api-service' }}"
+        CLUSTER_NAME="${{ needs.deploy-infrastructure.outputs.cluster_name || 'zama-api-platform-dev-cluster' }}"
+        SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.service_name || 'zama-api-platform-dev-api-service' }}"
         
         echo "Updating ECS service: $SERVICE_NAME in cluster: $CLUSTER_NAME"
         
@@ -209,8 +209,8 @@ jobs:
     - name: Verify deployment
       run: |
         # Get service details
-        CLUSTER_NAME="${{ needs.deploy-infrastructure.outputs.cluster_name || 'zama-api-cluster' }}"
-        SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.service_name || 'zama-api-service' }}"
+        CLUSTER_NAME="${{ needs.deploy-infrastructure.outputs.cluster_name || 'zama-api-platform-dev-cluster' }}"
+        SERVICE_NAME="${{ needs.deploy-infrastructure.outputs.service_name || 'zama-api-platform-dev-api-service' }}"
         
         # Check service status
         SERVICE_STATUS=$(aws ecs describe-services \

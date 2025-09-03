@@ -17,6 +17,7 @@ on:
           - auth
           - rate-limit
           - health
+          - load
       endpoint_override:
         description: 'Override Kong endpoint (optional)'
         required: false
@@ -203,10 +204,96 @@ jobs:
           exit 1
         fi
 
+  kong-load-test:
+    name: Kong Load Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'load' || github.event.inputs.test_type == null
+    
+    steps:
+    - name: Install k6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+
+    - name: Create k6 load test script
+      run: |
+        cat > kong-load-test.js << 'EOF'
+        import http from 'k6/http';
+        import { check, sleep } from 'k6';
+
+        export const options = {
+          stages: [
+            { duration: '30s', target: 10 },  // Ramp up
+            { duration: '1m', target: 20 },   // Stay at 20 users
+            { duration: '30s', target: 0 },   // Ramp down
+          ],
+          thresholds: {
+            http_req_duration: ['p(95)<500'], // 95% of requests under 500ms
+            http_req_failed: ['rate<0.1'],    // Error rate under 10%
+          },
+        };
+
+        const KONG_ENDPOINT = '${{ env.KONG_ENDPOINT }}';
+        const API_KEY = '${{ secrets.KONG_API_KEY }}';
+
+        export default function () {
+          // Test health endpoint (no auth)
+          let healthRes = http.get(`${KONG_ENDPOINT}/healthz`);
+          check(healthRes, {
+            'health check status is 200': (r) => r.status === 200,
+            'health check response time < 200ms': (r) => r.timings.duration < 200,
+          });
+
+          // Test API endpoint with auth
+          if (API_KEY) {
+            let apiRes = http.post(
+              `${KONG_ENDPOINT}/api/v1/sum`,
+              JSON.stringify({ numbers: [1, 2, 3, 4, 5] }),
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  [API_KEY.split(':')[0]]: API_KEY.split(':')[1],
+                },
+              }
+            );
+            
+            check(apiRes, {
+              'API status is 200': (r) => r.status === 200,
+              'API response time < 300ms': (r) => r.timings.duration < 300,
+              'API returns correct sum': (r) => {
+                try {
+                  const body = JSON.parse(r.body);
+                  return body.sum === 15;
+                } catch (e) {
+                  return false;
+                }
+              },
+            });
+          }
+
+          sleep(1);
+        }
+        EOF
+
+    - name: Run k6 load test
+      run: |
+        echo "🚀 Running k6 load test against Kong Konnect endpoint"
+        echo "Endpoint: ${{ env.KONG_ENDPOINT }}"
+        echo "API Key: ${{ secrets.KONG_API_KEY && 'Configured' || 'Not configured' }}"
+        
+        if [ -z "${{ secrets.KONG_API_KEY }}" ]; then
+          echo "⚠️  API key not configured, testing health endpoint only"
+        fi
+        
+        k6 run --summary-trend-stats="avg,min,med,max,p(95),p(99),count" kong-load-test.js
+
   kong-comprehensive-test:
     name: Kong Comprehensive Test
     runs-on: ubuntu-latest
-    needs: [kong-health-test, kong-auth-test, kong-rate-limit-test]
+    needs: [kong-health-test, kong-auth-test, kong-rate-limit-test, kong-load-test]
     if: always() && (github.event.inputs.test_type == 'all' || github.event.inputs.test_type == null)
     
     steps:
@@ -238,6 +325,12 @@ jobs:
           echo "❌ **Rate Limiting:** FAILED" >> $GITHUB_STEP_SUMMARY
         fi
         
+        if [ "${{ needs.kong-load-test.result }}" == "success" ]; then
+          echo "✅ **Load Testing:** PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Load Testing:** FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Quick Test Commands" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -258,4 +351,13 @@ jobs:
         echo '    -H "Content-Type: application/json" \' >> $GITHUB_STEP_SUMMARY
         echo '    -d '"'"'{"numbers": [1, 2, 3, 4, 5]}'"'"'' >> $GITHUB_STEP_SUMMARY
         echo 'done' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Load test with k6" >> $GITHUB_STEP_SUMMARY
+        echo 'k6 run --vus 10 --duration 30s <(cat << '"'"'EOF'"'"'' >> $GITHUB_STEP_SUMMARY
+        echo 'import http from '"'"'k6/http'"'"';"' >> $GITHUB_STEP_SUMMARY
+        echo 'export default function() {' >> $GITHUB_STEP_SUMMARY
+        echo '  http.get('"'"'${{ env.KONG_ENDPOINT }}/healthz'"'"');' >> $GITHUB_STEP_SUMMARY
+        echo '}' >> $GITHUB_STEP_SUMMARY
+        echo 'EOF' >> $GITHUB_STEP_SUMMARY
+        echo ')' >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
