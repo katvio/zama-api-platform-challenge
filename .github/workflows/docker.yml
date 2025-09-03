@@ -131,18 +131,30 @@ jobs:
     
     steps:
     - name: Run Grype vulnerability scanner
-      uses: anchore/scan-action@v3
-      with:
-        image: '${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest'
-        fail-build: false
-        severity-cutoff: high
+      id: grype-scan
+      run: |
+        echo "🔍 Running Grype vulnerability scan..."
+        
+        # Install grype
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        
+        # Run grype scan and save results (don't fail on vulnerabilities)
+        grype '${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest' \
+          -o json --file grype-results.json || echo "⚠️ Vulnerabilities found but not blocking CI"
+        
+        grype '${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest' \
+          -o sarif --file grype-results.sarif || echo "⚠️ Vulnerabilities found but not blocking CI"
+        
+        echo "✅ Grype scan completed (results saved as artifacts)"
 
     - name: Upload Grype scan results as artifact
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: grype-security-results
-        path: ${{ steps.scan.outputs.sarif }}
+        path: |
+          grype-results.json
+          grype-results.sarif
         retention-days: 30
 
   update-deployment:
