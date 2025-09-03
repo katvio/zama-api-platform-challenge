@@ -95,11 +95,13 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
 
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
+    - name: Upload Trivy scan results as artifact
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        sarif_file: 'trivy-results.sarif'
+        name: docker-trivy-security-results
+        path: trivy-results.sarif
+        retention-days: 30
 
     - name: Test Docker image
       if: github.event_name != 'pull_request'
@@ -135,11 +137,13 @@ jobs:
         fail-build: false
         severity-cutoff: high
 
-    - name: Upload Grype scan results
-      uses: github/codeql-action/upload-sarif@v3
+    - name: Upload Grype scan results as artifact
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        sarif_file: ${{ steps.scan.outputs.sarif }}
+        name: grype-security-results
+        path: ${{ steps.scan.outputs.sarif }}
+        retention-days: 30
 
   update-deployment:
     name: Update ECS Deployment

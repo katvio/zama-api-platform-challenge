@@ -154,7 +154,7 @@ DOCKERHUB_TOKEN=<your-docker-hub-token>
 # AWS Credentials (see docs/AWS_CREDENTIALS_SETUP.md for details)
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE          # Starts with "AKIA"
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG...  # 40-character string
-AWS_REGION=us-west-2
+AWS_REGION=eu-west-1
 
 # Terraform State
 TF_STATE_BUCKET=<your-terraform-state-bucket>
@@ -167,8 +167,8 @@ KONG_ENDPOINT=http://kong-4994957fd2euqcpzn.kongcloud.dev
 ### Optional Secrets
 
 ```bash
-# For enhanced coverage reporting
-CODECOV_TOKEN=<your-codecov-token>
+# All required secrets are listed above
+# No optional external service tokens needed
 ```
 
 ## 🎯 Workflow Dependencies

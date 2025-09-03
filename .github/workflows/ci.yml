@@ -115,12 +115,15 @@ jobs:
         echo "⚡ Running benchmark tests..."
         make bench || echo "⚠️ Benchmarks completed with warnings"
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+    - name: Upload coverage results as artifact
+      uses: actions/upload-artifact@v4
+      if: always()
       with:
-        file: ./api-go-service/coverage.out
-        flags: unittests
-        name: codecov-umbrella
+        name: coverage-results
+        path: |
+          ./api-go-service/coverage.out
+          ./api-go-service/coverage.html
+        retention-days: 30
 
     - name: Build application
       run: |
@@ -220,8 +223,10 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
 
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
+    - name: Upload Trivy scan results as artifact
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        sarif_file: 'trivy-results.sarif'
+        name: trivy-security-results
+        path: trivy-results.sarif
+        retention-days: 30

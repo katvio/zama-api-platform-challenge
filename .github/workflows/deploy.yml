@@ -29,7 +29,7 @@ on:
         type: boolean
 
 env:
-  AWS_REGION: us-west-2
+  AWS_REGION: eu-west-1
   DOCKER_IMAGE: flentier/demo-go-api-kong
 
 jobs:

@@ -13,7 +13,7 @@ on:
         type: string
 
 env:
-  AWS_REGION: us-west-2
+  AWS_REGION: eu-west-1
 
 jobs:
   security-test:
@@ -125,10 +125,10 @@ jobs:
         echo "ALB auto-discovery failed. Please test manually:"
         echo ""
         echo "1. Find your ALB DNS name:"
-        echo "   aws elbv2 describe-load-balancers --names zama-api-platform-dev-alb --query 'LoadBalancers[0].DNSName' --output text"
+        echo "   aws elbv2 describe-load-balancers --names zama-api-platform-dev-alb --query 'LoadBalancers[0].DNSName' --output text --region eu-west-1"
         echo ""
         echo "2. Test direct access (should FAIL):"
-        echo "   curl -X POST http://YOUR-ALB-DNS:8080/api/v1/sum \\"
+        echo "   curl -X POST http://zama-api-platform-dev-alb-418928923.eu-west-1.elb.amazonaws.com:8080/api/v1/sum \\"
         echo "     -H 'Content-Type: application/json' \\"
         echo "     -d '{\"numbers\": [1, 2]}' -vvv"
         echo ""

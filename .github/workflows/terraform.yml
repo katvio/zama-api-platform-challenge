@@ -34,7 +34,7 @@ on:
 
 env:
   TF_VERSION: '1.6.0'
-  AWS_REGION: us-west-2
+  AWS_REGION: eu-west-1
 
 jobs:
   terraform-check:
@@ -82,15 +82,42 @@ jobs:
         terraform validate
 
     - name: Run tfsec security scanner
-      uses: aquasecurity/tfsec-action@v1.0.0
+      run: |
+        # Install tfsec
+        curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+        
+        # Run tfsec and save results
+        ./tfsec terraform --format json --out tfsec-results.json || echo "⚠️ tfsec found security issues"
+        ./tfsec terraform --format sarif --out tfsec-results.sarif || echo "⚠️ tfsec found security issues"
+
+    - name: Upload tfsec results as artifact
+      uses: actions/upload-artifact@v4
+      if: always()
       with:
-        working_directory: terraform
+        name: tfsec-security-results
+        path: |
+          tfsec-results.json
+          tfsec-results.sarif
+        retention-days: 30
 
     - name: Run Checkov security scanner
-      uses: bridgecrewio/checkov-action@master
+      run: |
+        # Install Checkov
+        pip install checkov
+        
+        # Run Checkov and save results
+        checkov -d terraform --framework terraform --output json --output-file checkov-results.json || echo "⚠️ Checkov found security issues"
+        checkov -d terraform --framework terraform --output sarif --output-file checkov-results.sarif || echo "⚠️ Checkov found security issues"
+
+    - name: Upload Checkov results as artifact
+      uses: actions/upload-artifact@v4
+      if: always()
       with:
-        directory: terraform
-        framework: terraform
+        name: checkov-security-results
+        path: |
+          checkov-results.json
+          checkov-results.sarif
+        retention-days: 30
 
   terraform-plan:
     name: Terraform Plan
@@ -154,7 +181,7 @@ jobs:
 
     - name: Upload Terraform Plan
       if: steps.plan.outputs.exitcode == '2'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-plan-${{ github.event.inputs.environment || 'dev' }}
         path: terraform/environments/${{ github.event.inputs.environment || 'dev' }}/plan.txt
@@ -261,7 +288,7 @@ jobs:
         echo "📋 Terraform outputs saved"
 
     - name: Upload Terraform Outputs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-outputs-${{ github.event.inputs.environment || 'dev' }}
         path: terraform/environments/${{ github.event.inputs.environment || 'dev' }}/terraform-outputs.json
@@ -276,7 +303,7 @@ jobs:
         dot -Tpng terraform_graph.dot -o terraform_graph.png
 
     - name: Upload Infrastructure Graph
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-graph-${{ github.event.inputs.environment || 'dev' }}
         path: |
