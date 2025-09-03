@@ -124,7 +124,7 @@ resource "aws_route_table_association" "private" {
 # Security Group for Application Load Balancer
 resource "aws_security_group" "alb" {
   name        = "${var.name_prefix}-alb-sg"
-  description = "Security group for Application Load Balancer - Restricted to Kong Konnect"
+  description = "Security group for Application Load Balancer"
   vpc_id      = aws_vpc.main.id
 
   # Kong Konnect Cloud specific IP

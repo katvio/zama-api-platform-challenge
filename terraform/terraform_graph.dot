@@ -1,0 +1,143 @@
+digraph G {
+  rankdir = "RL";
+  node [shape = rect, fontname = "sans-serif"];
+  "data.aws_availability_zones.available" [label="data.aws_availability_zones.available"];
+  "data.aws_caller_identity.current" [label="data.aws_caller_identity.current"];
+  "aws_secretsmanager_secret.api_keys" [label="aws_secretsmanager_secret.api_keys"];
+  "aws_secretsmanager_secret_version.api_keys" [label="aws_secretsmanager_secret_version.api_keys"];
+  "random_id.suffix" [label="random_id.suffix"];
+  subgraph "cluster_module.compute" {
+    label = "module.compute"
+    fontname = "sans-serif"
+    "module.compute.data.aws_region.current" [label="data.aws_region.current"];
+    "module.compute.aws_appautoscaling_policy.api_cpu" [label="aws_appautoscaling_policy.api_cpu"];
+    "module.compute.aws_appautoscaling_policy.api_memory" [label="aws_appautoscaling_policy.api_memory"];
+    "module.compute.aws_appautoscaling_target.api" [label="aws_appautoscaling_target.api"];
+    "module.compute.aws_cloudwatch_log_group.ecs_exec" [label="aws_cloudwatch_log_group.ecs_exec"];
+    "module.compute.aws_ecs_cluster.main" [label="aws_ecs_cluster.main"];
+    "module.compute.aws_ecs_service.api" [label="aws_ecs_service.api"];
+    "module.compute.aws_ecs_task_definition.api" [label="aws_ecs_task_definition.api"];
+    "module.compute.aws_iam_role.ecs_task_execution_role" [label="aws_iam_role.ecs_task_execution_role"];
+    "module.compute.aws_iam_role.ecs_task_role" [label="aws_iam_role.ecs_task_role"];
+    "module.compute.aws_iam_role_policy.ecs_task_execution_secrets" [label="aws_iam_role_policy.ecs_task_execution_secrets"];
+    "module.compute.aws_iam_role_policy.ecs_task_policy" [label="aws_iam_role_policy.ecs_task_policy"];
+    "module.compute.aws_iam_role_policy_attachment.ecs_task_execution_role_policy" [label="aws_iam_role_policy_attachment.ecs_task_execution_role_policy"];
+    "module.compute.aws_lb.main" [label="aws_lb.main"];
+    "module.compute.aws_lb_listener.api" [label="aws_lb_listener.api"];
+    "module.compute.aws_lb_target_group.api" [label="aws_lb_target_group.api"];
+    "module.compute.aws_service_discovery_private_dns_namespace.main" [label="aws_service_discovery_private_dns_namespace.main"];
+    "module.compute.aws_service_discovery_service.api" [label="aws_service_discovery_service.api"];
+  }
+  subgraph "cluster_module.networking" {
+    label = "module.networking"
+    fontname = "sans-serif"
+    "module.networking.data.aws_caller_identity.current" [label="data.aws_caller_identity.current"];
+    "module.networking.data.aws_elb_service_account.main" [label="data.aws_elb_service_account.main"];
+    "module.networking.aws_cloudwatch_log_group.vpc_flow_log" [label="aws_cloudwatch_log_group.vpc_flow_log"];
+    "module.networking.aws_eip.nat" [label="aws_eip.nat"];
+    "module.networking.aws_flow_log.vpc" [label="aws_flow_log.vpc"];
+    "module.networking.aws_iam_role.flow_log" [label="aws_iam_role.flow_log"];
+    "module.networking.aws_iam_role_policy.flow_log" [label="aws_iam_role_policy.flow_log"];
+    "module.networking.aws_internet_gateway.main" [label="aws_internet_gateway.main"];
+    "module.networking.aws_nat_gateway.main" [label="aws_nat_gateway.main"];
+    "module.networking.aws_route_table.private" [label="aws_route_table.private"];
+    "module.networking.aws_route_table.public" [label="aws_route_table.public"];
+    "module.networking.aws_route_table_association.private" [label="aws_route_table_association.private"];
+    "module.networking.aws_route_table_association.public" [label="aws_route_table_association.public"];
+    "module.networking.aws_s3_bucket.alb_logs" [label="aws_s3_bucket.alb_logs"];
+    "module.networking.aws_s3_bucket_lifecycle_configuration.alb_logs" [label="aws_s3_bucket_lifecycle_configuration.alb_logs"];
+    "module.networking.aws_s3_bucket_policy.alb_logs" [label="aws_s3_bucket_policy.alb_logs"];
+    "module.networking.aws_s3_bucket_server_side_encryption_configuration.alb_logs" [label="aws_s3_bucket_server_side_encryption_configuration.alb_logs"];
+    "module.networking.aws_s3_bucket_versioning.alb_logs" [label="aws_s3_bucket_versioning.alb_logs"];
+    "module.networking.aws_security_group.alb" [label="aws_security_group.alb"];
+    "module.networking.aws_security_group.ecs_tasks" [label="aws_security_group.ecs_tasks"];
+    "module.networking.aws_subnet.private" [label="aws_subnet.private"];
+    "module.networking.aws_subnet.public" [label="aws_subnet.public"];
+    "module.networking.aws_vpc.main" [label="aws_vpc.main"];
+    "module.networking.random_id.bucket_suffix" [label="random_id.bucket_suffix"];
+  }
+  subgraph "cluster_module.observability" {
+    label = "module.observability"
+    fontname = "sans-serif"
+    "module.observability.data.aws_caller_identity.current" [label="data.aws_caller_identity.current"];
+    "module.observability.aws_cloudwatch_dashboard.main" [label="aws_cloudwatch_dashboard.main"];
+    "module.observability.aws_cloudwatch_log_group.api" [label="aws_cloudwatch_log_group.api"];
+    "module.observability.aws_cloudwatch_log_group.ecs" [label="aws_cloudwatch_log_group.ecs"];
+    "module.observability.aws_cloudwatch_log_group.kong" [label="aws_cloudwatch_log_group.kong"];
+    "module.observability.aws_cloudwatch_log_metric_filter.api_errors" [label="aws_cloudwatch_log_metric_filter.api_errors"];
+    "module.observability.aws_cloudwatch_log_metric_filter.kong_errors" [label="aws_cloudwatch_log_metric_filter.kong_errors"];
+    "module.observability.aws_cloudwatch_metric_alarm.api_cpu_high" [label="aws_cloudwatch_metric_alarm.api_cpu_high"];
+    "module.observability.aws_cloudwatch_metric_alarm.api_error_count" [label="aws_cloudwatch_metric_alarm.api_error_count"];
+    "module.observability.aws_cloudwatch_metric_alarm.api_memory_high" [label="aws_cloudwatch_metric_alarm.api_memory_high"];
+    "module.observability.aws_cloudwatch_metric_alarm.high_error_rate" [label="aws_cloudwatch_metric_alarm.high_error_rate"];
+    "module.observability.aws_cloudwatch_metric_alarm.high_response_time" [label="aws_cloudwatch_metric_alarm.high_response_time"];
+    "module.observability.aws_cloudwatch_metric_alarm.kong_cpu_high" [label="aws_cloudwatch_metric_alarm.kong_cpu_high"];
+    "module.observability.aws_cloudwatch_metric_alarm.unhealthy_tasks" [label="aws_cloudwatch_metric_alarm.unhealthy_tasks"];
+    "module.observability.aws_sns_topic.alerts" [label="aws_sns_topic.alerts"];
+    "module.observability.aws_sns_topic_policy.alerts" [label="aws_sns_topic_policy.alerts"];
+  }
+  "aws_secretsmanager_secret.api_keys" -> "random_id.suffix";
+  "aws_secretsmanager_secret_version.api_keys" -> "aws_secretsmanager_secret.api_keys";
+  "module.compute.aws_appautoscaling_policy.api_cpu" -> "module.compute.aws_appautoscaling_target.api";
+  "module.compute.aws_appautoscaling_policy.api_memory" -> "module.compute.aws_appautoscaling_target.api";
+  "module.compute.aws_appautoscaling_target.api" -> "module.compute.aws_ecs_service.api";
+  "module.compute.aws_ecs_service.api" -> "module.compute.aws_ecs_cluster.main";
+  "module.compute.aws_ecs_service.api" -> "module.compute.aws_ecs_task_definition.api";
+  "module.compute.aws_ecs_service.api" -> "module.compute.aws_lb_listener.api";
+  "module.compute.aws_ecs_service.api" -> "module.compute.aws_service_discovery_service.api";
+  "module.compute.aws_ecs_service.api" -> "module.networking.aws_subnet.private";
+  "module.compute.aws_ecs_task_definition.api" -> "module.compute.data.aws_region.current";
+  "module.compute.aws_ecs_task_definition.api" -> "module.compute.aws_iam_role.ecs_task_execution_role";
+  "module.compute.aws_ecs_task_definition.api" -> "module.compute.aws_iam_role.ecs_task_role";
+  "module.compute.aws_ecs_task_definition.api" -> "module.observability.aws_cloudwatch_log_group.ecs";
+  "module.compute.aws_iam_role_policy.ecs_task_execution_secrets" -> "aws_secretsmanager_secret.api_keys";
+  "module.compute.aws_iam_role_policy.ecs_task_execution_secrets" -> "module.compute.aws_iam_role.ecs_task_execution_role";
+  "module.compute.aws_iam_role_policy.ecs_task_policy" -> "module.compute.aws_iam_role.ecs_task_role";
+  "module.compute.aws_iam_role_policy_attachment.ecs_task_execution_role_policy" -> "module.compute.aws_iam_role.ecs_task_execution_role";
+  "module.compute.aws_lb.main" -> "module.networking.aws_s3_bucket.alb_logs";
+  "module.compute.aws_lb.main" -> "module.networking.aws_security_group.alb";
+  "module.compute.aws_lb.main" -> "module.networking.aws_subnet.public";
+  "module.compute.aws_lb_listener.api" -> "module.compute.aws_lb.main";
+  "module.compute.aws_lb_listener.api" -> "module.compute.aws_lb_target_group.api";
+  "module.compute.aws_lb_target_group.api" -> "module.networking.aws_vpc.main";
+  "module.compute.aws_service_discovery_private_dns_namespace.main" -> "module.networking.aws_vpc.main";
+  "module.compute.aws_service_discovery_service.api" -> "module.compute.aws_service_discovery_private_dns_namespace.main";
+  "module.networking.aws_eip.nat" -> "module.networking.aws_internet_gateway.main";
+  "module.networking.aws_flow_log.vpc" -> "module.networking.aws_cloudwatch_log_group.vpc_flow_log";
+  "module.networking.aws_flow_log.vpc" -> "module.networking.aws_iam_role.flow_log";
+  "module.networking.aws_flow_log.vpc" -> "module.networking.aws_vpc.main";
+  "module.networking.aws_iam_role_policy.flow_log" -> "module.networking.aws_iam_role.flow_log";
+  "module.networking.aws_internet_gateway.main" -> "module.networking.aws_vpc.main";
+  "module.networking.aws_nat_gateway.main" -> "module.networking.aws_eip.nat";
+  "module.networking.aws_nat_gateway.main" -> "module.networking.aws_subnet.public";
+  "module.networking.aws_route_table.private" -> "module.networking.aws_nat_gateway.main";
+  "module.networking.aws_route_table.public" -> "module.networking.aws_internet_gateway.main";
+  "module.networking.aws_route_table_association.private" -> "module.networking.aws_route_table.private";
+  "module.networking.aws_route_table_association.private" -> "module.networking.aws_subnet.private";
+  "module.networking.aws_route_table_association.public" -> "module.networking.aws_route_table.public";
+  "module.networking.aws_route_table_association.public" -> "module.networking.aws_subnet.public";
+  "module.networking.aws_s3_bucket.alb_logs" -> "module.networking.random_id.bucket_suffix";
+  "module.networking.aws_s3_bucket_lifecycle_configuration.alb_logs" -> "module.networking.aws_s3_bucket.alb_logs";
+  "module.networking.aws_s3_bucket_policy.alb_logs" -> "module.networking.data.aws_caller_identity.current";
+  "module.networking.aws_s3_bucket_policy.alb_logs" -> "module.networking.data.aws_elb_service_account.main";
+  "module.networking.aws_s3_bucket_policy.alb_logs" -> "module.networking.aws_s3_bucket.alb_logs";
+  "module.networking.aws_s3_bucket_server_side_encryption_configuration.alb_logs" -> "module.networking.aws_s3_bucket.alb_logs";
+  "module.networking.aws_s3_bucket_versioning.alb_logs" -> "module.networking.aws_s3_bucket.alb_logs";
+  "module.networking.aws_security_group.alb" -> "module.networking.aws_vpc.main";
+  "module.networking.aws_security_group.ecs_tasks" -> "module.networking.aws_security_group.alb";
+  "module.networking.aws_subnet.private" -> "data.aws_availability_zones.available";
+  "module.networking.aws_subnet.private" -> "module.networking.aws_vpc.main";
+  "module.networking.aws_subnet.public" -> "data.aws_availability_zones.available";
+  "module.networking.aws_subnet.public" -> "module.networking.aws_vpc.main";
+  "module.observability.aws_cloudwatch_log_metric_filter.api_errors" -> "module.observability.aws_cloudwatch_log_group.api";
+  "module.observability.aws_cloudwatch_log_metric_filter.kong_errors" -> "module.observability.aws_cloudwatch_log_group.kong";
+  "module.observability.aws_cloudwatch_metric_alarm.api_cpu_high" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_cloudwatch_metric_alarm.api_error_count" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_cloudwatch_metric_alarm.api_memory_high" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_cloudwatch_metric_alarm.high_error_rate" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_cloudwatch_metric_alarm.high_response_time" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_cloudwatch_metric_alarm.kong_cpu_high" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_cloudwatch_metric_alarm.unhealthy_tasks" -> "module.observability.aws_sns_topic.alerts";
+  "module.observability.aws_sns_topic_policy.alerts" -> "module.observability.data.aws_caller_identity.current";
+  "module.observability.aws_sns_topic_policy.alerts" -> "module.observability.aws_sns_topic.alerts";
+}
