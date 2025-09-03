@@ -15,16 +15,13 @@ This project implements a simple HTTP API service with enterprise-grade infrastr
 
 ## 🎥 Demo Videos
 
-### Kong Configuration and Testing
 - **[Kong API Keys and Rate Limiting](https://youtu.be/5mUnUrbfUfM)**: Demonstrates API key authentication and rate limiting configuration
 - **[With and Without Kong](https://youtu.be/Q4M9qjpq630)**: Shows the difference between direct API access and Kong-proxied requests
 - **[Kong Offerings and Security Reflections](https://youtu.be/b5qWpn9_UqU)**: Discussion of Kong's security features and architectural decisions
-
-### CI/CD Pipeline
 - **[GitHub Actions CI/CD](https://youtu.be/yF2o0mOHr5c)**: CICDs Walkthrough
 
 ## 🏗️ Architecture
-👉Very basic request flow:
+👉Very basic flow of the requests:
 ![Architecture Diagram](docs/images/very-basic-arch-diagram.png)
 
 
@@ -45,13 +42,64 @@ This project implements a simple HTTP API service with enterprise-grade infrastr
 - **CloudWatch**: Comprehensive monitoring, logging, and alerting
 - **GitHub Actions**: CI/CD pipeline for automated deployments
 
-### Key Design Decisions
 
-- **ECS Fargate over EKS**: Reduced operational overhead for simple services
-- **Kong Konnect (SaaS)**: Managed API gateway eliminating infrastructure management
-- **Separated Terraform State**: Isolated state files for networking, secrets, observability, and compute
-- **Multi-AZ Deployment**: High availability across multiple availability zones
-- **Comprehensive Monitoring**: 12 CloudWatch alarms covering main failure scenarios
+## 📁 Project Structure
+
+```
+.
+├── .github/                          # GitHub Actions CI/CD workflows
+│   └── workflows/
+│       ├── ci.yml                   # Continuous integration
+│       ├── deploy.yml               # AWS deployment pipeline
+│       ├── docker.yml               # Docker build and push
+│       ├── kong-konnect-test.yml    # Kong integration tests
+│       ├── security-validation.yml  # Security scanning
+│       ├── status.yml               # Status checks
+│       └── terraform.yml            # Infrastructure validation
+├── api-go-service/                  # Go API application
+│   ├── cmd/server/                  # Application entry point
+│   ├── internal/                    # Private application code
+│   │   ├── config/                  # Configuration management
+│   │   ├── handlers/                # HTTP request handlers
+│   │   ├── middleware/              # HTTP middleware
+│   │   ├── models/                  # Request/response models
+│   │   └── server/                  # Server setup and routing
+│   ├── pkg/logger/                  # Shared logging utilities
+│   ├── Dockerfile                   # Container definition
+│   ├── Makefile                     # Build automation
+│   └── README.md                    # API service documentation
+├── config/                          # Configuration files
+│   ├── dev/                         # Development environment configs
+│   ├── kong/                        # Kong configuration
+│   └── local/certs/                 # Local SSL certificates
+├── docs/                            # Project documentation
+│   ├── images/                      # Architecture diagrams
+│   ├── kong-docs/                   # Kong reference documentation
+│   ├── zama-challenge-docs/         # Challenge requirements
+│   └── SIMPLIFIED_MONITORING.md    # Monitoring overview
+├── monitoring/                      # CloudWatch configuration
+│   ├── alerts.json                  # Alert definitions (doc for ref)
+│   └── dashboard.json               # Dashboard configuration (doc for ref)
+├── scripts/                         # Deployment and utility scripts
+│   ├── deploy-terraform.sh          # Infrastructure deployment
+│   ├── setup-terraform-backend.sh   # Terraform s3 state setup
+│   └── test-endpoints.sh            # API testing script
+├── terraform/                       # Infrastructure as Code
+│   ├── environments/dev/            # Environment-specific configs
+│   │   ├── networking/              # VPC, subnets, security groups
+│   │   ├── secrets/                 # AWS Secrets Manager
+│   │   ├── observability/           # CloudWatch, alarms, SNS
+│   │   └── compute/                 # ECS, ALB, auto-scaling
+│   ├── modules/                     # Reusable Terraform modules
+│   │   ├── networking/              # Networking module
+│   │   ├── compute/                 # Compute module
+│   │   └── observability/           # Monitoring module
+│   ├── INFRASTRUCTURE.md            # Comprehensive infrastructure docs
+│   ├── plan.txt                     # Terraform plan output
+│   └── terraform_graph.png          # Infrastructure dependency graph
+├── LICENSE                          # Project license
+└── README.md                        # This file
+```
 
 ## 🚀 About the custom API Go app
 
@@ -100,6 +148,57 @@ The platform uses Terraform with separated state files for better isolation:
    cd ../compute && terraform init && terraform apply
    ```
 
+## 🧪 Testing Commands
+
+### Testing Kong API Gateway:
+
+#### Rate Limiting Test
+Test the rate limiting functionality (should hit the limit after several requests):
+```bash
+for i in {1..11}; do                                                                                           
+curl http://kong-4994957fd2euqcpzn.kongcloud.dev/healthz
+done
+```
+
+#### API Authentication Test:
+Test with valid API key:
+```bash
+curl http://kong-4994957fd2euqcpzn.kongcloud.dev/api/v1/sum \
+  -H 'Content-Type: application/json' \
+  -d '{"numbers": [1, 2, 3, 4, 5]}' \
+  -H "test-user-bob:BOB-API-KEY-123"
+```
+
+Test without API key (should fail with 401):
+```bash
+curl http://kong-4994957fd2euqcpzn.kongcloud.dev/api/v1/sum \
+  -H 'Content-Type: application/json' \
+  -d '{"numbers": [1, 2, 3, 4, 5]}'
+```
+
+### Testing Direct AWS Endpoint:
+
+#### Direct API Access (bypassing Kong)
+Test the API service directly through AWS ALB:
+```bash
+curl -X POST http://zama-api-platform-dev-alb-418928923.eu-west-1.elb.amazonaws.com:8080/api/v1/sum \
+  -H 'Content-Type: application/json' \
+  -d '{"numbers": [1, 2]}'
+```
+
+#### Health Check Test:
+```bash
+curl http://zama-api-platform-dev-alb-418928923.eu-west-1.elb.amazonaws.com:8080/healthz
+```
+
+This script tests:
+- ✅ Direct API service health checks
+- ✅ Kong proxy functionality  
+- ✅ API key authentication
+- ✅ Rate limiting behavior
+- ✅ Input validation
+- ✅ Error handling
+
 ## Future Improvements
 
 If given more time, the following enhancements would be valuable:
@@ -131,5 +230,6 @@ If given more time, the following enhancements would be valuable:
 * I works wuite well to kick start and create files. 
 * Must beware of outdated versions of modules/pkgs, CICDs GH actions etc.
 * It works great at injesting large docs (used it a lot on Kong and AWS/terra docs.
+* great at generating REAMDE docs too
 
 ---

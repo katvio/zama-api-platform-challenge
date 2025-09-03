@@ -390,4 +390,3 @@ VPC → Subnets → Security Groups → ALB → Target Groups → ECS Service
 - **Logs**: 7-day retention for operational logs
 - **Configuration**: Infrastructure as Code in Git
 
-This infrastructure provides a robust, scalable, and secure foundation for the Zama API Platform, with comprehensive monitoring and operational excellence built in from the ground up.
