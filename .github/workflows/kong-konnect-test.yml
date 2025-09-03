@@ -288,7 +288,42 @@ jobs:
           echo "⚠️  API key not configured, testing health endpoint only"
         fi
         
-        k6 run --summary-trend-stats="avg,min,med,max,p(95),p(99),count" kong-load-test.js
+        # Run k6 and capture both console output and JSON results
+        k6 run --summary-trend-stats="avg,min,med,max,p(95),p(99),count" \
+          --out json=k6-results.json \
+          kong-load-test.js | tee k6-output.txt
+        
+        echo "📊 K6 Load Test Results:" > k6-summary.txt
+        echo "========================" >> k6-summary.txt
+        
+        # Extract key metrics from k6 output
+        if [ -f k6-output.txt ]; then
+          echo "" >> k6-summary.txt
+          echo "**Test Summary:**" >> k6-summary.txt
+          grep -E "(scenarios|checks|data_received|data_sent|http_req_duration|http_req_failed|http_reqs|vus)" k6-output.txt >> k6-summary.txt 2>/dev/null || echo "Metrics extraction failed" >> k6-summary.txt
+          
+          echo "" >> k6-summary.txt
+          echo "**Performance Metrics:**" >> k6-summary.txt
+          grep -E "(avg=|min=|med=|max=|p\(95\)=|p\(99\)=)" k6-output.txt >> k6-summary.txt 2>/dev/null || echo "Performance metrics not found" >> k6-summary.txt
+        fi
+        
+        echo "" >> k6-summary.txt
+        echo "**Load Test Configuration:**" >> k6-summary.txt
+        echo "- Ramp up: 10 users over 30s" >> k6-summary.txt
+        echo "- Sustained: 20 users for 1 minute" >> k6-summary.txt
+        echo "- Ramp down: to 0 users over 30s" >> k6-summary.txt
+        echo "- Total duration: ~2 minutes" >> k6-summary.txt
+
+    - name: Upload k6 results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: k6-load-test-results
+        path: |
+          k6-results.json
+          k6-output.txt
+          k6-summary.txt
+        retention-days: 7
 
   kong-comprehensive-test:
     name: Kong Comprehensive Test
@@ -330,6 +365,52 @@ jobs:
         else
           echo "❌ **Load Testing:** FAILED" >> $GITHUB_STEP_SUMMARY
         fi
+
+    - name: Download k6 results
+      uses: actions/download-artifact@v3
+      if: needs.kong-load-test.result == 'success'
+      with:
+        name: k6-load-test-results
+        path: ./k6-results/
+
+    - name: Add k6 results to summary
+      if: needs.kong-load-test.result == 'success'
+      run: |
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Load Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "./k6-results/k6-summary.txt" ]; then
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat "./k6-results/k6-summary.txt" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ K6 results not available" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**📈 Key Performance Indicators:**" >> $GITHUB_STEP_SUMMARY
+        
+        # Extract specific metrics if available
+        if [ -f "./k6-results/k6-output.txt" ]; then
+          # Extract response time percentiles
+          P95=$(grep -o "p(95)=[0-9.]*ms" "./k6-results/k6-output.txt" | head -1 | cut -d'=' -f2 || echo "N/A")
+          P99=$(grep -o "p(99)=[0-9.]*ms" "./k6-results/k6-output.txt" | head -1 | cut -d'=' -f2 || echo "N/A")
+          AVG=$(grep -o "avg=[0-9.]*ms" "./k6-results/k6-output.txt" | head -1 | cut -d'=' -f2 || echo "N/A")
+          
+          # Extract success rate
+          SUCCESS_RATE=$(grep -o "http_req_failed.*[0-9.]*%" "./k6-results/k6-output.txt" | grep -o "[0-9.]*%" | head -1 || echo "N/A")
+          TOTAL_REQUESTS=$(grep -o "http_reqs.*[0-9]*" "./k6-results/k6-output.txt" | grep -o "[0-9]*" | head -1 || echo "N/A")
+          
+          echo "- **Average Response Time:** $AVG" >> $GITHUB_STEP_SUMMARY
+          echo "- **95th Percentile:** $P95" >> $GITHUB_STEP_SUMMARY  
+          echo "- **99th Percentile:** $P99" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Requests:** $TOTAL_REQUESTS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Error Rate:** $SUCCESS_RATE" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Finalize summary
+      run: |
         
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Quick Test Commands" >> $GITHUB_STEP_SUMMARY

@@ -32,22 +32,41 @@ jobs:
     - name: Get ALB endpoint
       id: get-alb
       run: |
-        if [ -n "${{ github.event.inputs.alb_endpoint }}" ]; then
+        # Check if ALB endpoint was provided manually
+        if [ -n "${{ github.event.inputs.alb_endpoint }}" ] && [ "${{ github.event.inputs.alb_endpoint }}" != "" ]; then
           ALB_DNS="${{ github.event.inputs.alb_endpoint }}"
           echo "Using provided ALB endpoint: $ALB_DNS"
         else
-          # Try to find ALB automatically
+          echo "No manual ALB endpoint provided, trying to discover automatically..."
+          
+          # Try to find ALB by the default name first
           ALB_DNS=$(aws elbv2 describe-load-balancers \
-            --query 'LoadBalancers[?starts_with(LoadBalancerName, `zama-api`)].DNSName' \
+            --names "zama-api-platform-dev-alb" \
+            --query 'LoadBalancers[0].DNSName' \
             --output text \
-            --region ${{ env.AWS_REGION }} 2>/dev/null | head -1 || echo "")
+            --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+          
+          # If default name not found, try pattern matching
+          if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+            echo "Default ALB name not found, trying pattern matching..."
+            ALB_DNS=$(aws elbv2 describe-load-balancers \
+              --query 'LoadBalancers[?starts_with(LoadBalancerName, `zama-api`)].DNSName' \
+              --output text \
+              --region ${{ env.AWS_REGION }} 2>/dev/null | head -1 || echo "")
+          fi
+          
+          if [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "None" ]; then
+            echo "Found ALB automatically: $ALB_DNS"
+          fi
         fi
         
         if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
-          echo "⚠️  No ALB endpoint found. Skipping test."
+          echo "⚠️  No ALB endpoint found. Skipping security test."
+          echo "   Tried: zama-api-platform-dev-alb and pattern matching"
           echo "   To test manually, provide ALB endpoint via workflow input"
           echo "skip_test=true" >> $GITHUB_OUTPUT
         else
+          echo "✅ Using ALB endpoint: $ALB_DNS"
           echo "alb_endpoint=$ALB_DNS" >> $GITHUB_OUTPUT
           echo "skip_test=false" >> $GITHUB_OUTPUT
         fi
@@ -103,11 +122,19 @@ jobs:
       run: |
         echo "📋 MANUAL TEST REQUIRED"
         echo "======================"
-        echo "Run this command with your ALB DNS:"
+        echo "ALB auto-discovery failed. Please test manually:"
         echo ""
-        echo "curl -X POST http://YOUR-ALB-DNS:8080/api/v1/sum \\"
-        echo "  -H 'Content-Type: application/json' \\"
-        echo "  -d '{\"numbers\": [1, 2]}' -vvv"
+        echo "1. Find your ALB DNS name:"
+        echo "   aws elbv2 describe-load-balancers --names zama-api-platform-dev-alb --query 'LoadBalancers[0].DNSName' --output text"
         echo ""
-        echo "Expected: Connection refused or timeout"
-        echo "If successful: SECURITY ISSUE!"
+        echo "2. Test direct access (should FAIL):"
+        echo "   curl -X POST http://YOUR-ALB-DNS:8080/api/v1/sum \\"
+        echo "     -H 'Content-Type: application/json' \\"
+        echo "     -d '{\"numbers\": [1, 2]}' -vvv"
+        echo ""
+        echo "3. Expected: Connection refused or timeout"
+        echo "4. If successful: SECURITY ISSUE!"
+        echo ""
+        echo "5. Or re-run this workflow with ALB endpoint:"
+        echo "   Actions → Security Validation → Run workflow"
+        echo "   → Set alb_endpoint to your ALB DNS name"

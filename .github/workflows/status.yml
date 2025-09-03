@@ -43,7 +43,6 @@ jobs:
         echo "- **🏗️ [Plan Infrastructure](https://github.com/${{ github.repository }}/actions/workflows/terraform.yml)** - Review infrastructure changes" >> $GITHUB_STEP_SUMMARY
         echo "- **🐳 [Build Docker Image](https://github.com/${{ github.repository }}/actions/workflows/docker.yml)** - Build and push container" >> $GITHUB_STEP_SUMMARY
         echo "- **🦍 [Test Kong Konnect](https://github.com/${{ github.repository }}/actions/workflows/kong-konnect-test.yml)** - Test Kong Gateway integration" >> $GITHUB_STEP_SUMMARY
-        echo "- **🛡️ [Security Validation](https://github.com/${{ github.repository }}/actions/workflows/security-validation.yml)** - Validate direct access is blocked" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
         echo "### 📈 Project Health" >> $GITHUB_STEP_SUMMARY

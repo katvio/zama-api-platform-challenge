@@ -96,7 +96,7 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
@@ -136,7 +136,7 @@ jobs:
         severity-cutoff: high
 
     - name: Upload Grype scan results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: ${{ steps.scan.outputs.sarif }}
@@ -165,8 +165,8 @@ jobs:
         
         # Update ECS task definition with new image
         aws ecs update-service \
-          --cluster zama-api-cluster \
-          --service zama-api-service \
+          --cluster zama-api-platform-dev-cluster \
+          --service zama-api-platform-dev-api-service \
           --force-new-deployment \
           --region ${{ secrets.AWS_REGION }}
         
