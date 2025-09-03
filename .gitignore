@@ -82,3 +82,7 @@ temp/
 
 # Kubernetes
 *.kubeconfig
+# Kong Konnect Certificates
+config/local/certs/*.crt
+config/local/certs/*.key
+*.pem
