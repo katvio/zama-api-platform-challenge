@@ -11,7 +11,7 @@ This project implements a simple HTTP API service with enterprise-grade infrastr
 - **AWS Infrastructure**: ECS Fargate with auto-scaling, load balancing, and security
 - **Observability**: CloudWatch monitoring, dashboards, and alerting
 - **CI/CD**: GitHub Actions for automated testing and deployment
-- **Security**: API key authentication, secrets management, and network isolation
+- **Security**: API key authentication, secrets management, network isolation, vuln scanning
 
 ## 🎥 Demo Videos
 
@@ -203,33 +203,37 @@ This script tests:
 
 If given more time, the following enhancements would be valuable:
 
-- private docker registry
+-  better alerting and monitoring stack: Distributed tracing,  Synthetic monitoring, better logs aggreg', in depth Performance testing
+-  SLO definitions with Proper Metrics:  request duration histograms (not just averages), business metrics (API calls per developer, quota usage),  distributed tracing with AWS X-Ray
+- Put in place the Developer portal (Kong offers that): Set up a proper IdP like Auth0 or Keycloak on this developer portal for OIDC (enforce MFA in Auth0); implement JWT validation, API key self-service for developers ; Usage analytics and quota management
+- turn the docker registry private or go for ECR
 - replace AWS Secret manager with  Hashicorps Vault or similar stronger alternatives
-- OIDC to avoid long lived service account credentials used in GithubActions
+- OIDC to avoid long lived aws account credentials used in GithubActions
 - Comprehensive AWS IAMs
-- Better protect AWS Root account
+- Better protect AWS Root account (yubikeys etc)
 - Better protect public IP AWS Endpoint using mTLS or Dedicated Kong instances
-- I actually know a company that had to put in place a API layer and secure it a long, it is: https://www.dfns.co/ and i know some of the tech stack they put in place
-- Put in place corporate security postures (zero trust networking, devices posture checks etc)
--  make sure the settings on the DNS provider side are very restricted
+- I actually know a company that had to put in place a API layer and secure it, it is: https://www.dfns.co/ and i might be able to get feedback on the API tools they decided to go for.
+- Put in place corporate security postures (zero trust networking, devices posture checks, JAMF, yubikeys, etc)
+-  Review zama's DNS settings to prevent DNS hijacks and similar
 -  improve security around the CICDs
--  better alerting and monitoring stack: Distributed tracing, ustom business metrics, Synthetic monitoring, better logs aggreg', in depth Performance testin.
--  Multi-region Docker deployment
--  AWS WAF?
--  Circuit breaker pattern (on Kong side)
--  the use of an external IdP different than the AWS one
+-  Strong Multi-region deployment strategy
+-  Circuit breaker pattern (on Kong side, and ALB side?)
+-  the use of an external IdP different than the AWS identity (for our internal AWS IAM part i mean)
 -  mTLS end to end
 -  Automated rollback and Blue/green deployments
 -  put in place disaster recovery procedures and incident response runbooks
--  dead man switch for the monitoring and alertign part (and move out of AWS's suite ?)
+-  dead man switch for the monitoring and alerting part (and add another monitoring Stack along the AWS's native one? (Prom/Grafana/AlertM, etc))
+-  Set Kong config as Code and not from the web UI (i think that is not possible for serverless opiton i picked, but at least save CLI commands))
+- Kong Konnect Developer Portal configuration: API key self-service for developers ; Usage analytics and quota management
 
 
 ## 🤖 AI Coding Assistance
 
-* During this project, AI coding assistance (Cursor + Claude 4 Sonnet Max and ChatGPT5.
+During this project, i used AI coding assistance (Cursor + Claude 4 Sonnet Max and ChatGPT5:
+
 * I works wuite well to kick start and create files. 
-* Must beware of outdated versions of modules/pkgs, CICDs GH actions etc.
-* It works great at injesting large docs (used it a lot on Kong and AWS/terra docs.
+* Must beware of outdated versions of modules/pkgs, CICDs GH actions modules etc.
+* It works great at injesting large docs (used it a lot on Kong and AWS/terra docs) to find out are be the best tech/config choices to go for.
 * great at generating REAMDE docs too
 
 ---
