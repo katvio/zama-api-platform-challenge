@@ -218,44 +218,15 @@ This document provides a comprehensive breakdown of all AWS resources and compon
 | `aws_secretsmanager_secret_version.kong_konnect_config` | Secret Version | Kong configuration |
 | `random_id.suffix` | Random ID | Unique naming suffix |
 
-#### Secret Contents
-```json
-{
-  "api_keys": {
-    "api_key_demo": "your-demo-api-key"
-  },
-  "kong_konnect_config": {
-    "kong_admin_token": "PLACEHOLDER_REPLACE_IN_CONSOLE",
-    "kong_api_url": "PLACEHOLDER_REPLACE_IN_CONSOLE"
-  }
-}
-```
 
 ## 🔄 Component Interactions & Data Flow
 
 ### 1. External Traffic Flow
-```mermaid
-graph TD
-    A[Client Request] --> B[Kong Konnect SaaS]
-    B --> C[API Key Validation]
-    C --> D[Rate Limiting Check]
-    D --> E[AWS ALB]
-    E --> F[ECS Fargate Tasks]
-    F --> G[Go API Service]
-    G --> H[Response]
-    H --> F --> E --> D --> B --> A
-```
 
-### 2. Internal Service Discovery
-```mermaid
-graph LR
-    A[ECS Service] --> B[Service Discovery]
-    B --> C[Private DNS]
-    C --> D[api.zama-api-platform-dev.local:8080]
-    D --> E[Internal Load Balancing]
-```
+![Architecture Diagram](../docs/images/very-basic-arch-diagram.png)
 
-### 3. Monitoring & Alerting Flow
+
+### 2. Monitoring & Alerting Flow
 ```mermaid
 graph TD
     A[ECS Tasks] --> B[CloudWatch Logs]
@@ -268,19 +239,6 @@ graph TD
     H --> D
 ```
 
-### 4. Security & Access Control
-```mermaid
-graph TD
-    A[Internet] --> B[ALB Security Group]
-    B --> C[Kong Konnect IP: 205.234.240.62/32]
-    B --> D[Admin IP: 88.181.233.30/32]
-    B --> E[VPC Internal: 10.0.0.0/16]
-    E --> F[ECS Security Group]
-    F --> G[Private Subnets]
-    G --> H[ECS Tasks]
-    H --> I[Secrets Manager]
-    I --> J[API Keys]
-```
 
 ## 📊 Resource Dependencies
 
@@ -295,16 +253,7 @@ Observability (Depends on: Networking)
 Compute (Depends on: Networking, Secrets, Observability)
 ```
 
-### Critical Resource Dependencies
-```
-VPC → Subnets → Security Groups → ALB → Target Groups → ECS Service
-                                    ↓
-                           Service Discovery ← ECS Tasks
-                                    ↓
-                              CloudWatch Logs ← Log Groups
-                                    ↓
-                             CloudWatch Alarms → SNS → Email
-```
+
 
 ## 🏗️ Infrastructure Characteristics
 

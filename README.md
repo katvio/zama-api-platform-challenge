@@ -203,9 +203,9 @@ This script tests:
 
 If given more time, the following enhancements would be valuable:
 
--  better alerting and monitoring stack: Distributed tracing,  Synthetic monitoring, better logs aggreg', in depth Performance testing
--  SLO definitions with Proper Metrics:  request duration histograms (not just averages), business metrics (API calls per developer, quota usage),  distributed tracing with AWS X-Ray
 - Put in place the Developer portal (Kong offers that): Set up a proper IdP like Auth0 or Keycloak on this developer portal for OIDC (enforce MFA in Auth0); implement JWT validation, API key self-service for developers ; Usage analytics and quota management
+-  SLO definitions with Proper Metrics:  request duration histograms (not just averages), business metrics (API calls per developer, quota usage),  distributed tracing with AWS X-Ray
+-  better alerting and monitoring stack: Distributed tracing,  Synthetic monitoring, better logs aggreg', in depth Performance testing
 - turn the docker registry private or go for ECR
 - replace AWS Secret manager with  Hashicorps Vault or similar stronger alternatives
 - OIDC to avoid long lived aws account credentials used in GithubActions
@@ -214,7 +214,7 @@ If given more time, the following enhancements would be valuable:
 - Better protect public IP AWS Endpoint using mTLS or Dedicated Kong instances
 - I actually know a company that had to put in place a API layer and secure it, it is: https://www.dfns.co/ and i might be able to get feedback on the API tools they decided to go for.
 - Put in place corporate security postures (zero trust networking, devices posture checks, JAMF, yubikeys, etc)
--  Review zama's DNS settings to prevent DNS hijacks and similar
+-  Review zama's DNS settings to prevent [DNS hijacks](https://www.bleepingcomputer.com/news/security/dns-hijacks-target-crypto-platforms-registered-with-squarespace/) and similar
 -  improve security around the CICDs
 -  Strong Multi-region deployment strategy
 -  Circuit breaker pattern (on Kong side, and ALB side?)
@@ -224,7 +224,6 @@ If given more time, the following enhancements would be valuable:
 -  put in place disaster recovery procedures and incident response runbooks
 -  dead man switch for the monitoring and alerting part (and add another monitoring Stack along the AWS's native one? (Prom/Grafana/AlertM, etc))
 -  Set Kong config as Code and not from the web UI (i think that is not possible for serverless opiton i picked, but at least save CLI commands))
-- Kong Konnect Developer Portal configuration: API key self-service for developers ; Usage analytics and quota management
 
 
 ## 🤖 AI Coding Assistance
