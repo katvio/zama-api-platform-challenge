@@ -21,19 +21,19 @@ This project implements a simple HTTP API service with enterprise-grade infrastr
 - **[GitHub Actions CI/CD](https://youtu.be/yF2o0mOHr5c)**: CICDs Walkthrough
 
 ## 🏗️ Architecture
+### Current architecture:
 👉Very basic flow of the requests:
 ![Architecture Diagram](docs/images/very-basic-arch-diagram.png)
 
 
-👉Terraform Graph([see file](./terraform/terraform_graph.png)):
+👉Terraform Graph of current arch ([see file](./terraform/terraform_graph.png)):
 
 ![Terraform Graph](terraform/terraform_graph.png)
 
 
-👉Comprehensive AWS architecture: [click here](./terraform/INFRASTRUCTURE.md)
+👉Comprehensive current AWS arch: [click here](./terraform/INFRASTRUCTURE.md)
 
-
-### Components
+### Components (current arch):
 
 - **Client**: External users making API requests to Kong's endpoint
 - **Kong Konnect**: Serverless API gateway (SaaS) handling authentication and rate limiting, authorizes or not the trafic to AWS
@@ -41,6 +41,16 @@ This project implements a simple HTTP API service with enterprise-grade infrastr
 - **ECS Fargate**: Container orchestration running the Go API service
 - **CloudWatch**: Comprehensive monitoring, logging, and alerting
 - **GitHub Actions**: CI/CD pipeline for automated deployments
+
+### Desired architecture:
+
+After some trials and erros **i designed a new architecture that is better** than the one i deployed for the challenge:
+
+👉Desired architecture (no public IP):
+![Architecture Diagram](docs/images/desired-arch-diagram.png)
+
+It seems better because on this one Zama has zero public exposure end-to-end.
+The problem with the current one (using serverless kong) is that we are forced to expose the backend to the internet (even if locked down by headers/mTLS).
 
 
 ## 📁 Project Structure
